@@ -7,6 +7,9 @@ from typing import Any
 
 import requests
 
+TableColumn = dict[str, str]  # keys: name, display_name; optional data_type/width
+TableSpec = dict[str, Any]  # keys: columns, rows; optional title, page_size
+
 
 def _post_json(url: str, payload: dict, timeout: float = 15.0) -> None:
     resp = requests.post(url, json=payload, timeout=timeout)
@@ -18,33 +21,121 @@ def _post_json(url: str, payload: dict, timeout: float = 15.0) -> None:
         raise RuntimeError(f"Webhook 返回错误: {data}")
 
 
+def _header_template(title: str) -> str:
+    if "周报" in title or "月报" in title:
+        return "purple"
+    if "日报" in title or "DeepSeek" in title or "板块" in title:
+        return "blue"
+    if "超过" in title or "30%" in title or "40%" in title or "50%" in title:
+        return "red"
+    if "回撤" in title:
+        return "yellow"
+    return "orange"
+
+
+def _table_element(spec: TableSpec) -> dict[str, Any]:
+    columns = []
+    for col in spec["columns"]:
+        columns.append(
+            {
+                "name": col["name"],
+                "display_name": col.get("display_name") or col["name"],
+                "data_type": col.get("data_type") or "lark_md",
+                "width": col.get("width") or "auto",
+                "horizontal_align": col.get("align") or "left",
+            }
+        )
+    return {
+        "tag": "table",
+        "page_size": int(spec.get("page_size") or min(10, max(1, len(spec.get("rows") or [])))),
+        "row_height": "low",
+        "header_style": {
+            "text_align": "left",
+            "text_size": "normal",
+            "background_style": "grey",
+            "text_color": "default",
+            "bold": True,
+            "lines": 1,
+        },
+        "columns": columns,
+        "rows": list(spec.get("rows") or []),
+    }
+
+
+def _markdown_fallback_table(spec: TableSpec) -> str:
+    cols = spec["columns"]
+    headers = [c.get("display_name") or c["name"] for c in cols]
+    keys = [c["name"] for c in cols]
+    lines = [" | ".join(f"**{h}**" for h in headers), " | ".join(["---"] * len(headers))]
+    for row in spec.get("rows") or []:
+        lines.append(" | ".join(str(row.get(k, "—")) for k in keys))
+    title = spec.get("title")
+    if title:
+        return f"**{title}**\n" + "\n".join(lines)
+    return "\n".join(lines)
+
+
 def send_feishu(
-    text: str,
+    text: str = "",
     *,
     title: str = "买入提醒 · MA30",
     webhook_url: str | None = None,
+    tables: list[TableSpec] | None = None,
+    markdown: str | None = None,
 ) -> None:
-    """Send Feishu custom-bot message as an interactive card (falls back to text)."""
+    """
+    Send Feishu interactive card.
+
+    Prefer Card JSON 2.0 with native tables; fall back to markdown/text.
+    `markdown` / `text` support **bold** via lark_md / markdown.
+    """
     url = webhook_url or os.getenv("FEISHU_WEBHOOK_URL", "").strip()
     if not url:
         raise ValueError("未配置 FEISHU_WEBHOOK_URL")
 
-    if "周报" in title or "月报" in title:
-        template = "purple"
-    elif "日报" in title or "DeepSeek" in title:
-        template = "blue"
-    elif "超过" in title or "30%" in title or "40%" in title or "50%" in title:
-        template = "red"
-    elif "回撤" in title:
-        template = "yellow"
-    else:
-        template = "orange"
-    # Feishu card text soft limit — truncate politely if oversized
-    body = text
-    if len(body) > 4500:
-        body = body[:4400] + "\n\n…（内容过长已截断）"
+    template = _header_template(title)
+    body_md = (markdown if markdown is not None else text) or ""
+    if len(body_md) > 4500:
+        body_md = body_md[:4400] + "\n\n…（内容过长已截断）"
 
-    card: dict[str, Any] = {
+    elements: list[dict[str, Any]] = []
+    if body_md.strip():
+        elements.append({"tag": "markdown", "content": body_md})
+    for spec in tables or []:
+        if spec.get("title"):
+            elements.append({"tag": "markdown", "content": f"**{spec['title']}**"})
+        elements.append(_table_element(spec))
+    elements.append(
+        {
+            "tag": "note",
+            "elements": [
+                {"tag": "plain_text", "content": "仅供个人提醒，不构成投资建议"}
+            ],
+        }
+    )
+
+    card_v2: dict[str, Any] = {
+        "msg_type": "interactive",
+        "card": {
+            "schema": "2.0",
+            "header": {
+                "title": {"tag": "plain_text", "content": title[:50]},
+                "template": template,
+            },
+            "body": {"elements": elements},
+        },
+    }
+
+    # Legacy card (1.0): markdown + optional text tables
+    legacy_parts = []
+    if body_md.strip():
+        legacy_parts.append(body_md)
+    for spec in tables or []:
+        legacy_parts.append(_markdown_fallback_table(spec))
+    legacy_body = "\n\n".join(legacy_parts) or title
+    if len(legacy_body) > 4500:
+        legacy_body = legacy_body[:4400] + "\n\n…（内容过长已截断）"
+    card_v1: dict[str, Any] = {
         "msg_type": "interactive",
         "card": {
             "header": {
@@ -54,10 +145,7 @@ def send_feishu(
             "elements": [
                 {
                     "tag": "div",
-                    "text": {
-                        "tag": "lark_md",
-                        "content": body,
-                    },
+                    "text": {"tag": "lark_md", "content": legacy_body},
                 },
                 {
                     "tag": "note",
@@ -71,10 +159,17 @@ def send_feishu(
             ],
         },
     }
+
     try:
-        _post_json(url, card)
+        _post_json(url, card_v2)
     except Exception:
-        _post_json(url, {"msg_type": "text", "content": {"text": f"{title}\n{text}"}})
+        try:
+            _post_json(url, card_v1)
+        except Exception:
+            _post_json(
+                url,
+                {"msg_type": "text", "content": {"text": f"{title}\n{legacy_body}"}},
+            )
 
 
 def send_wecom(text: str, webhook_url: str | None = None) -> None:
@@ -97,20 +192,32 @@ def send_dingtalk(text: str, webhook_url: str | None = None) -> None:
     )
 
 
-def send_alert(text: str, *, title: str = "加仓提醒 · MA30") -> str:
+def send_alert(
+    text: str = "",
+    *,
+    title: str = "加仓提醒 · MA30",
+    tables: list[TableSpec] | None = None,
+    markdown: str | None = None,
+) -> str:
     """
     Send via first configured channel.
     Priority: Feishu > WeCom > DingTalk.
     Returns channel name used.
     """
     if os.getenv("FEISHU_WEBHOOK_URL", "").strip():
-        send_feishu(text, title=title)
+        send_feishu(text, title=title, tables=tables, markdown=markdown)
         return "feishu"
+    # Non-Feishu channels: flatten tables into text.
+    flat = markdown or text
+    if tables:
+        flat = (flat + "\n\n" if flat else "") + "\n\n".join(
+            _markdown_fallback_table(t) for t in tables
+        )
     if os.getenv("WECOM_WEBHOOK_URL", "").strip():
-        send_wecom(text)
+        send_wecom(flat)
         return "wecom"
     if os.getenv("DINGTALK_WEBHOOK_URL", "").strip():
-        send_dingtalk(text)
+        send_dingtalk(flat)
         return "dingtalk"
     raise ValueError(
         "未配置 FEISHU_WEBHOOK_URL。请复制飞书群机器人 Webhook 到 .env"
@@ -120,6 +227,22 @@ def send_alert(text: str, *, title: str = "加仓提醒 · MA30") -> str:
 def send_test_ping() -> str:
     """Send a one-off connectivity check to the configured channel."""
     return send_alert(
-        "股价监控机器人连通测试成功 ✅\n若看到此消息，说明飞书 Webhook 配置正确。",
+        markdown=(
+            "**连通测试成功**\n"
+            "若看到本卡片，说明飞书 Webhook 可用，并支持 **加粗** 与表格样式。"
+        ),
         title="连通测试",
+        tables=[
+            {
+                "title": "样式预览",
+                "columns": [
+                    {"name": "item", "display_name": "项目", "width": "100px"},
+                    {"name": "value", "display_name": "效果", "width": "160px"},
+                ],
+                "rows": [
+                    {"item": "**加粗**", "value": "名称列可加粗"},
+                    {"item": "表格", "value": "行情将按表格展示"},
+                ],
+            }
+        ],
     )

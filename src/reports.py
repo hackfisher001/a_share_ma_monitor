@@ -36,10 +36,9 @@ THEME_LABELS = {
 SYSTEM_PROMPTS = {
     "daily": (
         "你是个人长线投资助手。根据给定的持仓行情事实写中文日报点评。\n"
-        "结构固定为五段纯正文（不要标题符号）：\n"
+        "结构固定为五段纯正文；每段第一行用加粗小标题，例如 **一、涨跌分化**：\n"
         "1) 个股与美股涨跌分化（点名偏强/偏弱，带具体涨跌幅）；\n"
-        "2) 板块ETF强弱：重点比较科技类ETF（半导体/芯片/AI/科创/创业板/光伏/新能源车等）"
-        "相对沪深300及其他行业ETF的1日、3日、1周表现，点出领涨与领跌板块；\n"
+        "2) 板块ETF强弱：重点比较科技类ETF相对沪深300及其他行业ETF的1日、3日、1周表现；\n"
         "3) 近期急跌观察：以急跌榜为准，点名近1日/3日/1周跌得最凶的标的，"
         "说明是否可作为机动仓小额加仓观察对象；一年高点回撤只作补充；\n"
         "4) 均线观察（谁贴近MA30、谁明显偏离）；\n"
@@ -48,7 +47,7 @@ SYSTEM_PROMPTS = {
     ),
     "weekly": (
         "你是个人长线投资助手。根据给定的持仓行情事实写中文周报点评。\n"
-        "结构固定为五段纯正文（不要标题符号）：\n"
+        "结构固定为五段纯正文；每段第一行用加粗小标题，例如 **一、本周强弱**：\n"
         "1) 个股与美股本周强弱；\n"
         "2) 板块ETF轮动：科技类相对其他行业及沪深300谁强谁弱；\n"
         "3) 回撤与急跌：一年高点回撤 + 本周跌幅较大标的；\n"
@@ -58,7 +57,7 @@ SYSTEM_PROMPTS = {
     ),
     "monthly": (
         "你是个人长线投资助手。根据给定的持仓行情事实写中文月报点评。\n"
-        "结构固定为五段纯正文（不要标题符号）：\n"
+        "结构固定为五段纯正文；每段第一行用加粗小标题，例如 **一、一月表现**：\n"
         "1) 一月个股/美股表现归纳；\n"
         "2) 板块ETF一月表现：科技类 vs 医药/银行/白酒/军工/沪深300；\n"
         "3) 回撤深度；\n"
@@ -139,34 +138,136 @@ def _stock_block_monthly(bundle: QuoteBundle) -> str:
     )
 
 
-def _block_for(kind: str, bundle: QuoteBundle) -> str:
+def _row_daily(bundle: QuoteBundle) -> dict[str, str]:
+    st = _short_term_moves(bundle)
+    ma_dev = (bundle.price - bundle.ma30) / bundle.ma30 * 100
+    dd = (
+        (bundle.price / bundle.high_252 - 1.0) * 100
+        if bundle.high_252 > 0
+        else None
+    )
+    return {
+        "name": f"**{bundle.name}**\n{bundle.code}",
+        "price": f"{bundle.price:.2f}",
+        "d1": _fmt_pct(st["1日"]),
+        "d3": _fmt_pct(st["3日"]),
+        "w1": _fmt_pct(st["1周"]),
+        "ma": f"{ma_dev:+.2f}%",
+        "dd": _fmt_pct(dd) if dd is not None else "—",
+    }
+
+
+def _row_weekly(bundle: QuoteBundle) -> dict[str, str]:
+    ma_dev = (bundle.price - bundle.ma30) / bundle.ma30 * 100
+    dd = (
+        (bundle.price / bundle.high_252 - 1.0) * 100
+        if bundle.high_252 > 0
+        else None
+    )
+    return {
+        "name": f"**{bundle.name}**\n{bundle.code}",
+        "price": f"{bundle.price:.2f}",
+        "w1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 7)),
+        "m1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 30)),
+        "ma": f"{ma_dev:+.2f}%",
+        "dd": _fmt_pct(dd) if dd is not None else "—",
+    }
+
+
+def _row_monthly(bundle: QuoteBundle) -> dict[str, str]:
+    ma_dev = (bundle.price - bundle.ma30) / bundle.ma30 * 100
+    dd = (
+        (bundle.price / bundle.high_252 - 1.0) * 100
+        if bundle.high_252 > 0
+        else None
+    )
+    return {
+        "name": f"**{bundle.name}**\n{bundle.code}",
+        "price": f"{bundle.price:.2f}",
+        "m1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 30)),
+        "m3": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 91)),
+        "h1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 182)),
+        "y1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 365)),
+        "ma": f"{ma_dev:+.2f}%",
+        "dd": _fmt_pct(dd) if dd is not None else "—",
+    }
+
+
+def _columns_for(kind: str) -> list[dict[str, str]]:
     if kind == "weekly":
-        return _stock_block_weekly(bundle)
+        return [
+            {"name": "name", "display_name": "名称", "width": "110px"},
+            {"name": "price", "display_name": "现价", "width": "70px"},
+            {"name": "w1", "display_name": "1周", "width": "75px"},
+            {"name": "m1", "display_name": "1月", "width": "75px"},
+            {"name": "ma", "display_name": "较MA30", "width": "80px"},
+            {"name": "dd", "display_name": "一年回撤", "width": "85px"},
+        ]
     if kind == "monthly":
-        return _stock_block_monthly(bundle)
-    return _stock_block_daily(bundle)
+        return [
+            {"name": "name", "display_name": "名称", "width": "110px"},
+            {"name": "price", "display_name": "现价", "width": "70px"},
+            {"name": "m1", "display_name": "1月", "width": "70px"},
+            {"name": "m3", "display_name": "3月", "width": "70px"},
+            {"name": "h1", "display_name": "半年", "width": "70px"},
+            {"name": "y1", "display_name": "1年", "width": "70px"},
+            {"name": "ma", "display_name": "较MA30", "width": "75px"},
+            {"name": "dd", "display_name": "一年回撤", "width": "80px"},
+        ]
+    return [
+        {"name": "name", "display_name": "名称", "width": "110px"},
+        {"name": "price", "display_name": "现价", "width": "70px"},
+        {"name": "d1", "display_name": "1日", "width": "70px"},
+        {"name": "d3", "display_name": "3日", "width": "70px"},
+        {"name": "w1", "display_name": "1周", "width": "70px"},
+        {"name": "ma", "display_name": "较MA30", "width": "80px"},
+        {"name": "dd", "display_name": "一年回撤", "width": "85px"},
+    ]
 
 
-def _market_data_text(kind: str, bundles: list[QuoteBundle]) -> str:
-    header = f"共 {len(bundles)} 只｜{date.today().isoformat()}"
+def _row_for(kind: str, bundle: QuoteBundle) -> dict[str, str]:
+    if kind == "weekly":
+        return _row_weekly(bundle)
+    if kind == "monthly":
+        return _row_monthly(bundle)
+    return _row_daily(bundle)
+
+
+def _build_tables(kind: str, bundles: list[QuoteBundle]) -> list[dict]:
+    """One Feishu table per theme group; chunk to page_size<=10."""
     order = ("tech_etf", "nasdaq_cn", "sector_etf", "stock", "nasdaq_us", "macro", "")
     grouped: dict[str, list[QuoteBundle]] = {}
     for b in bundles:
         grouped.setdefault(b.theme or "", []).append(b)
 
-    sections: list[str] = [header]
-    for theme in order:
-        items = grouped.pop(theme, [])
-        if not items:
-            continue
+    columns = _columns_for(kind)
+    tables: list[dict] = []
+    themes = [t for t in order if grouped.get(t)] + [
+        t for t in grouped if t not in order
+    ]
+    for theme in themes:
+        items = grouped[theme]
         label = THEME_LABELS.get(theme, theme or "其他")
-        sections.append(f"【{label}】")
-        sections.extend(_block_for(kind, b) for b in items)
-    for theme, items in grouped.items():
-        label = THEME_LABELS.get(theme, theme or "其他")
-        sections.append(f"【{label}】")
-        sections.extend(_block_for(kind, b) for b in items)
-    return "\n\n".join(sections)
+        rows = [_row_for(kind, b) for b in items]
+        for i in range(0, len(rows), 10):
+            chunk = rows[i : i + 10]
+            title = f"{label}" if i == 0 else f"{label}（续）"
+            tables.append(
+                {
+                    "title": title,
+                    "columns": columns,
+                    "rows": chunk,
+                    "page_size": len(chunk),
+                }
+            )
+    return tables
+
+
+def _market_header(kind: str, bundles: list[QuoteBundle]) -> str:
+    return (
+        f"**共 {len(bundles)} 只**｜{date.today().isoformat()}\n"
+        f"绿色不必看颜色，请直接对比涨跌幅列；名称已 **加粗**。"
+    )
 
 
 def _sector_board(bundles: list[QuoteBundle], kind: str) -> list[str]:
@@ -324,26 +425,31 @@ def run_report(
             groups = [(f"{REPORT_TITLES[kind]} · {market_label}行情", bundles)]
 
         for title, group in groups:
-            text = _market_data_text(kind, group)
-            if errors and group is bundles:
-                text += "\n\n拉取失败: " + ", ".join(errors)
-            elif errors and title.endswith("个股"):
-                text += "\n\n拉取失败: " + ", ".join(errors)
+            header = _market_header(kind, group)
+            tables = _build_tables(kind, group)
+            if errors and (group is bundles or title.endswith("个股")):
+                header += "\n\n**拉取失败：** " + ", ".join(errors)
             if dry_run:
-                log.info("[dry-run] %s\n%s", title, text[:1200])
+                log.info("[dry-run] %s tables=%d\n%s", title, len(tables), header)
             else:
-                channel = send_alert(text, title=title)
-                log.info("已通过 %s 发送 %s（%d 只）", channel, title, len(group))
+                channel = send_alert(
+                    title=title,
+                    markdown=header,
+                    tables=tables,
+                )
+                log.info("已通过 %s 发送 %s（%d 只 / %d 表）", channel, title, len(group), len(tables))
             sent += 1
 
     if all_bundles:
         comment = _llm_comment(kind, all_bundles)
         if comment:
             title = f"{REPORT_TITLES[kind]} · DeepSeek 点评"
+            # Ensure section labels render as bold even if model omits markers.
+            md = comment if "**" in comment else f"**点评摘要**\n{comment}"
             if dry_run:
-                log.info("[dry-run] %s\n%s", title, comment)
+                log.info("[dry-run] %s\n%s", title, md)
             else:
-                channel = send_alert(comment, title=title)
+                channel = send_alert(title=title, markdown=md)
                 log.info("已通过 %s 发送 %s", channel, title)
             sent += 1
 
