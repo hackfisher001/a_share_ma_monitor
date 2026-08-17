@@ -1,8 +1,9 @@
-"""Fetch CN / HK daily history and latest price via akshare."""
+"""Fetch CN / HK / US daily history and latest price."""
 
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import akshare as ak
@@ -18,6 +19,10 @@ def _normalize_cn(code: str) -> str:
 
 def _normalize_hk(code: str) -> str:
     return str(code).strip().zfill(5)
+
+
+def _normalize_us(code: str) -> str:
+    return str(code).strip().upper()
 
 
 def to_sina_symbol(code: str) -> str:
@@ -43,7 +48,17 @@ def _retry(fn, *, attempts: int = 3, delay: float = 1.5):
     raise last_exc
 
 
-def fetch_daily_history_cn(code: str, lookback_days: int = 120) -> pd.DataFrame:
+def _ensure_ohlc(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.rename(columns=str.lower).copy()
+    if "date" not in out.columns:
+        raise ValueError("缺少 date 列")
+    out["date"] = pd.to_datetime(out["date"])
+    if getattr(out["date"].dt, "tz", None) is not None:
+        out["date"] = out["date"].dt.tz_localize(None)
+    return out.sort_values("date").reset_index(drop=True)
+
+
+def fetch_daily_history_cn(code: str, lookback_days: int = 420) -> pd.DataFrame:
     code = _normalize_cn(code)
     symbol = to_sina_symbol(code)
     end = datetime.now()
@@ -60,9 +75,7 @@ def fetch_daily_history_cn(code: str, lookback_days: int = 120) -> pd.DataFrame:
         )
         if df is None or df.empty:
             raise ValueError(f"新浪日线为空: {symbol}")
-        out = df.rename(columns=str.lower).copy()
-        out["date"] = pd.to_datetime(out["date"])
-        return out.sort_values("date").reset_index(drop=True)
+        return _ensure_ohlc(df)
 
     def _from_tx():
         df = ak.stock_zh_a_hist_tx(
@@ -73,9 +86,7 @@ def fetch_daily_history_cn(code: str, lookback_days: int = 120) -> pd.DataFrame:
         )
         if df is None or df.empty:
             raise ValueError(f"腾讯日线为空: {symbol}")
-        out = df.rename(columns=str.lower).copy()
-        out["date"] = pd.to_datetime(out["date"])
-        return out.sort_values("date").reset_index(drop=True)
+        return _ensure_ohlc(df)
 
     errors: list[str] = []
     for loader in (_from_sina, _from_tx):
@@ -86,7 +97,7 @@ def fetch_daily_history_cn(code: str, lookback_days: int = 120) -> pd.DataFrame:
     raise RuntimeError(f"{code} 日线拉取失败: " + " | ".join(errors))
 
 
-def fetch_daily_history_hk(code: str, lookback_days: int = 180) -> pd.DataFrame:
+def fetch_daily_history_hk(code: str, lookback_days: int = 420) -> pd.DataFrame:
     code = _normalize_hk(code)
     end = datetime.now()
     start = end - timedelta(days=lookback_days)
@@ -94,16 +105,14 @@ def fetch_daily_history_hk(code: str, lookback_days: int = 180) -> pd.DataFrame:
     end_s = end.strftime("%Y%m%d")
 
     def _from_hk_daily():
-        # Sina-backed; more reliable than Eastmoney on some networks
         df = ak.stock_hk_daily(symbol=code, adjust="qfq")
         if df is None or df.empty:
             raise ValueError(f"港股 daily 为空: {code}")
-        out = df.rename(columns=str.lower).copy()
-        out["date"] = pd.to_datetime(out["date"])
+        out = _ensure_ohlc(df)
         out = out[(out["date"] >= pd.Timestamp(start)) & (out["date"] <= pd.Timestamp(end))]
         if out.empty:
             raise ValueError(f"港股 daily 无近期数据: {code}")
-        return out.sort_values("date").reset_index(drop=True)
+        return out.reset_index(drop=True)
 
     def _from_em():
         df = ak.stock_hk_hist(
@@ -123,21 +132,26 @@ def fetch_daily_history_hk(code: str, lookback_days: int = 180) -> pd.DataFrame:
             "最低": "low",
             "成交量": "volume",
         }
-        out = df.rename(columns=rename)
-        out["date"] = pd.to_datetime(out["date"])
-        return out.sort_values("date").reset_index(drop=True)
+        return _ensure_ohlc(df.rename(columns=rename))
 
     def _from_yf():
         import yfinance as yf
 
         ticker = yf.Ticker(f"{code}.HK")
-        df = ticker.history(period="6mo", auto_adjust=True)
+        df = ticker.history(period="2y", auto_adjust=True)
         if df is None or df.empty:
             raise ValueError(f"yfinance 港股为空: {code}")
-        out = df.reset_index()
-        out = out.rename(columns={"Date": "date", "Close": "close", "Open": "open", "High": "high", "Low": "low", "Volume": "volume"})
-        out["date"] = pd.to_datetime(out["date"]).dt.tz_localize(None)
-        return out.sort_values("date").reset_index(drop=True)
+        out = df.reset_index().rename(
+            columns={
+                "Date": "date",
+                "Close": "close",
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Volume": "volume",
+            }
+        )
+        return _ensure_ohlc(out)
 
     errors: list[str] = []
     for loader in (_from_hk_daily, _from_em, _from_yf):
@@ -147,6 +161,31 @@ def fetch_daily_history_hk(code: str, lookback_days: int = 180) -> pd.DataFrame:
             errors.append(f"{loader.__name__}: {exc}")
     raise RuntimeError(f"{code} 港股日线拉取失败: " + " | ".join(errors))
 
+
+def fetch_daily_history_us(code: str, lookback_days: int = 420) -> pd.DataFrame:
+    code = _normalize_us(code)
+
+    def _from_yf():
+        import yfinance as yf
+
+        ticker = yf.Ticker(code)
+        # 2y covers 1y lookback with buffer
+        df = ticker.history(period="2y", auto_adjust=True)
+        if df is None or df.empty:
+            raise ValueError(f"yfinance 美股为空: {code}")
+        out = df.reset_index().rename(
+            columns={
+                "Date": "date",
+                "Close": "close",
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Volume": "volume",
+            }
+        )
+        return _ensure_ohlc(out)
+
+    return _retry(_from_yf, attempts=3, delay=1.5)
 
 
 def lookup_spot_cn(code: str) -> tuple[float | None, str]:
@@ -177,7 +216,6 @@ def lookup_spot_cn(code: str) -> tuple[float | None, str]:
 
 
 def lookup_spot_hk(code: str) -> tuple[float | None, str]:
-    """Sina HK quote: hk00700."""
     code = _normalize_hk(code)
     symbol = f"hk{code}"
     url = f"https://hq.sinajs.cn/list={symbol}"
@@ -193,7 +231,6 @@ def lookup_spot_hk(code: str) -> tuple[float | None, str]:
             return None, ""
         payload = text.split('="', 1)[1].rstrip('";\n')
         parts = payload.split(",")
-        # hk format: name, ..., price often at index 6
         if len(parts) < 7:
             return None, ""
         name = parts[1].strip() or parts[0].strip()
@@ -205,37 +242,92 @@ def lookup_spot_hk(code: str) -> tuple[float | None, str]:
         return None, ""
 
 
-def build_snapshot(code: str, name: str = "", market: str = "cn") -> QuoteSnapshot:
+def lookup_spot_us(code: str) -> tuple[float | None, str]:
+    code = _normalize_us(code)
+    try:
+        import yfinance as yf
+
+        t = yf.Ticker(code)
+        info_name = ""
+        try:
+            info_name = str(t.fast_info.get("shortName") or "")
+        except Exception:
+            pass
+        # fast_info last price
+        try:
+            price = float(t.fast_info["lastPrice"])
+            if price > 0:
+                return price, info_name
+        except Exception:
+            pass
+        hist = t.history(period="5d", auto_adjust=True)
+        if hist is None or hist.empty:
+            return None, info_name
+        return float(hist["Close"].iloc[-1]), info_name
+    except Exception:
+        return None, ""
+
+
+@dataclass
+class QuoteBundle:
+    code: str
+    name: str
+    market: str
+    price: float
+    ma30: float
+    as_of: str
+    hist: pd.DataFrame
+
+
+def fetch_history(code: str, market: str = "cn") -> pd.DataFrame:
     market = (market or "cn").strip().lower()
     if market == "hk":
-        code = _normalize_hk(code)
-        hist = fetch_daily_history_hk(code)
-        spot_price, spot_name = lookup_spot_hk(code)
-        display_code = code
+        return fetch_daily_history_hk(code)
+    if market == "us":
+        return fetch_daily_history_us(code)
+    return fetch_daily_history_cn(code)
+
+
+def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
+    market = (market or "cn").strip().lower()
+    if market == "hk":
+        display = _normalize_hk(code)
+        hist = fetch_daily_history_hk(display)
+        spot_price, spot_name = lookup_spot_hk(display)
+    elif market == "us":
+        display = _normalize_us(code)
+        hist = fetch_daily_history_us(display)
+        spot_price, spot_name = lookup_spot_us(display)
     else:
-        code = _normalize_cn(code)
-        hist = fetch_daily_history_cn(code)
-        spot_price, spot_name = lookup_spot_cn(code)
-        display_code = code
+        display = _normalize_cn(code)
+        hist = fetch_daily_history_cn(display)
+        spot_price, spot_name = lookup_spot_cn(display)
 
     if len(hist) < 30:
-        raise ValueError(f"{display_code} 日线不足 30 根，无法计算 MA30（当前 {len(hist)}）")
+        raise ValueError(f"{display} 日线不足 30 根（当前 {len(hist)}）")
 
     ma30 = float(hist["close"].tail(30).mean())
-    if spot_price is not None:
-        price = spot_price
-    else:
-        price = float(hist.iloc[-1]["close"])
-
-    if not name:
-        name = spot_name or display_code
-
+    price = float(spot_price) if spot_price is not None else float(hist.iloc[-1]["close"])
+    display_name = name or spot_name or display
     as_of = hist.iloc[-1]["date"].strftime("%Y-%m-%d")
-    return QuoteSnapshot(
-        code=display_code,
-        name=name,
+    return QuoteBundle(
+        code=display,
+        name=display_name,
+        market=market,
         price=price,
         ma30=ma30,
         as_of=as_of,
-        history_rows=len(hist),
+        hist=hist,
+    )
+
+
+def build_snapshot(code: str, name: str = "", market: str = "cn") -> QuoteSnapshot:
+    b = build_bundle(code, name=name, market=market)
+    return QuoteSnapshot(
+        code=b.code,
+        name=b.name,
+        price=b.price,
+        ma30=b.ma30,
+        as_of=b.as_of,
+        history_rows=len(b.hist),
     )

@@ -1,5 +1,5 @@
-# 核心资产监控列表
-# 阈值：现价相对 30 日均线偏离绝对值 ≤ touch_pct 时触发买入提醒
+# 监控列表
+# touch_pct: 现价相对 MA30 偏离 ≤ 该值时发买入提醒
 touch_pct: 0.5
 
 stocks:
@@ -52,3 +52,33 @@ stocks:
   - code: "600938"
     name: "中国海油"
     market: cn
+
+  # —— 美股科技 / 指数 ——
+  # spcx 按标普相关理解，使用 SPY（标普500 ETF）
+  - code: "TSLA"
+    name: "特斯拉"
+    market: us
+  - code: "SPY"
+    name: "标普500ETF"
+    market: us
+  - code: "GOOGL"
+    name: "谷歌"
+    market: us
+  - code: "AAPL"
+    name: "苹果"
+    market: us
+  - code: "MSFT"
+    name: "微软"
+    market: us
+  - code: "NVDA"
+    name: "英伟达"
+    market: us
+  - code: "META"
+    name: "Meta"
+    market: us
+  - code: "AMZN"
+    name: "亚马逊"
+    market: us
+  - code: "QQQ"
+    name: "纳指100ETF"
+    market: us

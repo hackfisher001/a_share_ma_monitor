@@ -29,19 +29,25 @@ def send_feishu(
     if not url:
         raise ValueError("未配置 FEISHU_WEBHOOK_URL")
 
+    template = "blue" if "日报" in title else "orange"
+    # Feishu card text soft limit — truncate politely if oversized
+    body = text
+    if len(body) > 4500:
+        body = body[:4400] + "\n\n…（内容过长已截断）"
+
     card: dict[str, Any] = {
         "msg_type": "interactive",
         "card": {
             "header": {
-                "title": {"tag": "plain_text", "content": title},
-                "template": "orange",
+                "title": {"tag": "plain_text", "content": title[:50]},
+                "template": template,
             },
             "elements": [
                 {
                     "tag": "div",
                     "text": {
                         "tag": "lark_md",
-                        "content": text.replace("\n", "\n\n"),
+                        "content": body,
                     },
                 },
                 {
@@ -59,8 +65,7 @@ def send_feishu(
     try:
         _post_json(url, card)
     except Exception:
-        # Older bots / restricted tenants may reject cards → plain text
-        _post_json(url, {"msg_type": "text", "content": {"text": text}})
+        _post_json(url, {"msg_type": "text", "content": {"text": f"{title}\n{text}"}})
 
 
 def send_wecom(text: str, webhook_url: str | None = None) -> None:

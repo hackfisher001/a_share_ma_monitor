@@ -43,11 +43,19 @@ python -m src.main --dry-run       # 只算信号，不推送
 python -m src.main                 # 正式推送
 ```
 
-## 判定规则
+## 每日股价日报
 
-- 用前复权日线收盘价计算 **MA30**（最近 30 个交易日收盘均价）
-- 现价优先取东方财富 A 股实时快照；失败则退回最近收盘价
-- 当 `|现价 - MA30| / MA30 × 100 ≤ touch_pct` 时触发（默认 `touch_pct: 0.5`）
+交易日自动推送飞书（也可手动）：
+
+```bash
+python -m src.main --digest --dry-run          # 预览全部市场
+python -m src.main --digest --market cn,hk     # 仅 A/H
+python -m src.main --digest --market us        # 仅美股
+python -m src.main --digest                    # 正式发送
+```
+
+每只股票包含：**现价、MA30、1日 / 5日 / 1周 / 1月 / 半年 / 1年** 涨跌幅。
+A/H 默认 **16:10** 推送；美股默认北京时间 **次日 06:30** 推送。
 
 ## GitHub Actions
 
