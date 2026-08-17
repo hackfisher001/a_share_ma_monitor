@@ -163,13 +163,25 @@ def fetch_daily_history_hk(code: str, lookback_days: int = 420) -> pd.DataFrame:
 
 
 def fetch_daily_history_us(code: str, lookback_days: int = 420) -> pd.DataFrame:
+    """Prefer akshare US daily (reachable from CN cloud); yfinance as last resort."""
     code = _normalize_us(code)
+    end = datetime.now()
+    start = end - timedelta(days=lookback_days)
+
+    def _from_ak_daily():
+        df = ak.stock_us_daily(symbol=code, adjust="qfq")
+        if df is None or df.empty:
+            raise ValueError(f"akshare 美股 daily 为空: {code}")
+        out = _ensure_ohlc(df)
+        filtered = out[(out["date"] >= pd.Timestamp(start)) & (out["date"] <= pd.Timestamp(end))]
+        if len(filtered) >= 30:
+            return filtered.reset_index(drop=True)
+        return out.reset_index(drop=True)
 
     def _from_yf():
         import yfinance as yf
 
         ticker = yf.Ticker(code)
-        # 2y covers 1y lookback with buffer
         df = ticker.history(period="2y", auto_adjust=True)
         if df is None or df.empty:
             raise ValueError(f"yfinance 美股为空: {code}")
@@ -185,7 +197,13 @@ def fetch_daily_history_us(code: str, lookback_days: int = 420) -> pd.DataFrame:
         )
         return _ensure_ohlc(out)
 
-    return _retry(_from_yf, attempts=3, delay=1.5)
+    errors: list[str] = []
+    for loader, attempts in ((_from_ak_daily, 2), (_from_yf, 1)):
+        try:
+            return _retry(loader, attempts=attempts, delay=1.0)
+        except Exception as exc:
+            errors.append(f"{loader.__name__}: {exc}")
+    raise RuntimeError(f"{code} 美股日线拉取失败: " + " | ".join(errors))
 
 
 def lookup_spot_cn(code: str) -> tuple[float | None, str]:
@@ -243,29 +261,8 @@ def lookup_spot_hk(code: str) -> tuple[float | None, str]:
 
 
 def lookup_spot_us(code: str) -> tuple[float | None, str]:
-    code = _normalize_us(code)
-    try:
-        import yfinance as yf
-
-        t = yf.Ticker(code)
-        info_name = ""
-        try:
-            info_name = str(t.fast_info.get("shortName") or "")
-        except Exception:
-            pass
-        # fast_info last price
-        try:
-            price = float(t.fast_info["lastPrice"])
-            if price > 0:
-                return price, info_name
-        except Exception:
-            pass
-        hist = t.history(period="5d", auto_adjust=True)
-        if hist is None or hist.empty:
-            return None, info_name
-        return float(hist["Close"].iloc[-1]), info_name
-    except Exception:
-        return None, ""
+    """CN cloud often cannot reach Yahoo; leave spot empty and use daily close."""
+    return None, ""
 
 
 @dataclass
