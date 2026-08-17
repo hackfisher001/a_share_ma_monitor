@@ -29,7 +29,9 @@ def send_feishu(
     if not url:
         raise ValueError("未配置 FEISHU_WEBHOOK_URL")
 
-    if "日报" in title:
+    if "周报" in title or "月报" in title:
+        template = "purple"
+    elif "日报" in title or "DeepSeek" in title:
         template = "blue"
     elif "超过" in title or "30%" in title or "40%" in title or "50%" in title:
         template = "red"

@@ -17,9 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.digest import run_digest
 from src.fetch_quotes import build_snapshot
 from src.notify import send_alert, send_test_ping
+from src.reports import run_report
 from src.signals import DEFAULT_DRAWDOWN_LEVELS, crossed_drawdown_levels, is_touching_ma30
 from src.state import AlertState
 
@@ -146,7 +146,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="股价监控：MA30 触及 + 多档回撤观察 + 每日涨跌日报"
+        description="股价监控：MA30 + 多档回撤 + 日/周/月报（DeepSeek 点评）"
     )
     parser.add_argument("-c", "--config", default=str(ROOT / "watchlist.yaml"))
     parser.add_argument("--dry-run", action="store_true", help="只计算，不发 Webhook")
@@ -155,12 +155,17 @@ def main() -> None:
     parser.add_argument(
         "--digest",
         action="store_true",
-        help="发送每日股价日报（1日/5日/1周/1月/半年/1年）",
+        help="兼容旧参数：等价于 --report daily",
+    )
+    parser.add_argument(
+        "--report",
+        choices=["daily", "weekly", "monthly"],
+        help="发送持仓报告：daily / weekly / monthly（含 DeepSeek 点评）",
     )
     parser.add_argument(
         "--market",
         default="all",
-        help="日报市场过滤：all / cn / hk / us（可逗号分隔）",
+        help="报告市场过滤：all / cn / hk / us（可逗号分隔）",
     )
     args = parser.parse_args()
 
@@ -170,14 +175,23 @@ def main() -> None:
         log.info("测试消息已发送（%s）", channel)
         raise SystemExit(0)
 
-    if args.digest:
+    report_kind = args.report
+    if args.digest and not report_kind:
+        report_kind = "daily"
+
+    if report_kind:
         load_dotenv(ROOT / ".env")
         _, stocks = load_watchlist(Path(args.config))
         markets = None
         if args.market and args.market.lower() != "all":
             markets = [m.strip().lower() for m in args.market.split(",") if m.strip()]
         raise SystemExit(
-            run_digest(stocks, dry_run=args.dry_run, markets=markets)
+            run_report(
+                stocks,
+                kind=report_kind,
+                dry_run=args.dry_run,
+                markets=markets,
+            )
         )
 
     raise SystemExit(
