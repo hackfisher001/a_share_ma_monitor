@@ -54,12 +54,9 @@ stocks:
     market: cn
 
   # —— 美股科技 / 指数 ——
-  # spcx 按标普相关理解，使用 SPY（标普500 ETF）
+  # SpaceX 尚未 IPO，无公开行情，暂无法监控；上市后可再加代码
   - code: "TSLA"
     name: "特斯拉"
-    market: us
-  - code: "SPY"
-    name: "标普500ETF"
     market: us
   - code: "GOOGL"
     name: "谷歌"
