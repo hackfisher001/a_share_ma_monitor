@@ -10,7 +10,7 @@ import akshare as ak
 import pandas as pd
 import requests
 
-from src.signals import QuoteSnapshot
+from src.signals import HIGH_WINDOW, QuoteSnapshot
 
 
 def _normalize_cn(code: str) -> str:
@@ -272,6 +272,7 @@ class QuoteBundle:
     market: str
     price: float
     ma30: float
+    high_252: float
     as_of: str
     hist: pd.DataFrame
 
@@ -305,6 +306,8 @@ def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
 
     ma30 = float(hist["close"].tail(30).mean())
     price = float(spot_price) if spot_price is not None else float(hist.iloc[-1]["close"])
+    # Close-based high, matching the rolling high used in the backtest.
+    high_252 = float(max(hist["close"].tail(HIGH_WINDOW).max(), price))
     display_name = name or spot_name or display
     as_of = hist.iloc[-1]["date"].strftime("%Y-%m-%d")
     return QuoteBundle(
@@ -313,6 +316,7 @@ def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
         market=market,
         price=price,
         ma30=ma30,
+        high_252=high_252,
         as_of=as_of,
         hist=hist,
     )
@@ -327,4 +331,5 @@ def build_snapshot(code: str, name: str = "", market: str = "cn") -> QuoteSnapsh
         ma30=b.ma30,
         as_of=b.as_of,
         history_rows=len(b.hist),
+        high_252=b.high_252,
     )

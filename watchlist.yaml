@@ -1,61 +1,48 @@
 # 监控列表
-# touch_pct: 现价相对 MA30 偏离 ≤ 该值时发买入提醒
+# touch_pct: 现价相对 MA30 偏离 ≤ 该值时发加仓提醒（小额）
 touch_pct: 0.5
 
+# 深度回撤重仓信号：现价较近一年（252 个交易日）收盘高点回撤 ≥ 该值时提醒。
+# 回测显示该信号仅在 A 股有效；美股深跌越等越差，故不纳入 us。
+drawdown_pct: 30
+drawdown_markets:
+  - cn
+# 回撤状态会持续数周，冷却期避免同一轮下跌反复提醒
+drawdown_cooldown_days: 30
+
 stocks:
-  # —— 白酒 ——
-  - code: "600519"
-    name: "贵州茅台"
-    market: cn
-  - code: "000858"
-    name: "五粮液"
-    market: cn
-  - code: "000568"
-    name: "泸州老窖"
-    market: cn
-
-  # —— 中药 / 消费 ——
-  - code: "600436"
-    name: "片仔癀"
-    market: cn
-  - code: "600329"
-    name: "达仁堂"
-    market: cn
-  - code: "600085"
-    name: "同仁堂"
-    market: cn
-  - code: "000538"
-    name: "云南白药"
-    market: cn
-  - code: "000423"
-    name: "东阿阿胶"
-    market: cn
-  - code: "600887"
-    name: "伊利股份"
-    market: cn
-
-  # —— 金融 ——
+  # —— A股个股 ——
   - code: "600036"
     name: "招商银行"
     market: cn
-
-  # —— 科技 / 能源 ——
-  - code: "00700"
-    name: "腾讯控股"
-    market: hk
   - code: "600584"
     name: "长电科技"
     market: cn
   - code: "601088"
     name: "中国神华"
     market: cn
-  - code: "600938"
-    name: "中国海油"
+
+  # —— 境内纳指相关 ETF ——
+  - code: "159509"
+    name: "纳指科技ETF"
+    market: cn
+  - code: "159941"
+    name: "纳指ETF广发"
+    market: cn
+  # 注意：300024 公开行情为「机器人」股票，不是纳指ETF；若本意是国泰纳指ETF请改为 513100
+  - code: "300024"
+    name: "机器人"
     market: cn
 
-  # —— 美股科技 / 指数 ——
+  # —— 美股 ——
   - code: "TSLA"
     name: "特斯拉"
+    market: us
+  - code: "SNDK"
+    name: "闪迪"
+    market: us
+  - code: "AMD"
+    name: "超威/AMD"
     market: us
   - code: "SPCX"
     name: "SpaceX"
@@ -66,18 +53,22 @@ stocks:
   - code: "AAPL"
     name: "苹果"
     market: us
-  - code: "MSFT"
-    name: "微软"
-    market: us
   - code: "NVDA"
     name: "英伟达"
     market: us
-  - code: "META"
-    name: "Meta"
+  - code: "MU"
+    name: "美光"
     market: us
-  - code: "AMZN"
-    name: "亚马逊"
-    market: us
-  - code: "QQQ"
+  - code: "QQQM"
     name: "纳指100ETF"
+    market: us
+
+  # —— 大宗 / 贵金属 / 加密货币 ——
+  # COMEX 黄金期货连续合约（美元/盎司）
+  - code: "GC=F"
+    name: "国际黄金"
+    market: us
+  # 比特币现货（美元）
+  - code: "BTC-USD"
+    name: "比特币"
     market: us

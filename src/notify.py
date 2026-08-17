@@ -29,7 +29,12 @@ def send_feishu(
     if not url:
         raise ValueError("未配置 FEISHU_WEBHOOK_URL")
 
-    template = "blue" if "日报" in title else "orange"
+    if "日报" in title:
+        template = "blue"
+    elif "回撤" in title:
+        template = "red"
+    else:
+        template = "orange"
     # Feishu card text soft limit — truncate politely if oversized
     body = text
     if len(body) > 4500:
@@ -88,7 +93,7 @@ def send_dingtalk(text: str, webhook_url: str | None = None) -> None:
     )
 
 
-def send_alert(text: str, *, title: str = "买入提醒 · MA30") -> str:
+def send_alert(text: str, *, title: str = "加仓提醒 · MA30") -> str:
     """
     Send via first configured channel.
     Priority: Feishu > WeCom > DingTalk.
@@ -111,6 +116,6 @@ def send_alert(text: str, *, title: str = "买入提醒 · MA30") -> str:
 def send_test_ping() -> str:
     """Send a one-off connectivity check to the configured channel."""
     return send_alert(
-        "MA30 监控机器人连通测试成功 ✅\n若看到此消息，说明飞书 Webhook 配置正确。",
+        "股价监控机器人连通测试成功 ✅\n若看到此消息，说明飞书 Webhook 配置正确。",
         title="连通测试",
     )
