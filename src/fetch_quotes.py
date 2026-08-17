@@ -1,13 +1,16 @@
-"""Fetch A-share daily history and latest price via akshare."""
+"""Fetch A-share daily history and latest price via akshare.
+
+Prefer Sina / Tencent endpoints — Eastmoney is often blocked on cloud IPs.
+"""
 
 from __future__ import annotations
 
 import time
 from datetime import datetime, timedelta
-from functools import lru_cache
 
 import akshare as ak
 import pandas as pd
+import requests
 
 from src.signals import QuoteSnapshot
 
@@ -16,12 +19,22 @@ def _normalize_code(code: str) -> str:
     return str(code).strip().zfill(6)
 
 
+def to_sina_symbol(code: str) -> str:
+    """600519 -> sh600519; 000001 -> sz000001; 920000 -> bj920000."""
+    code = _normalize_code(code)
+    if code.startswith(("5", "6", "9")):
+        return f"sh{code}"
+    if code.startswith(("4", "8")):
+        return f"bj{code}"
+    return f"sz{code}"
+
+
 def _retry(fn, *, attempts: int = 3, delay: float = 1.5):
     last_exc: Exception | None = None
     for i in range(attempts):
         try:
             return fn()
-        except Exception as exc:  # network / proxy flakiness
+        except Exception as exc:
             last_exc = exc
             if i < attempts - 1:
                 time.sleep(delay * (i + 1))
@@ -29,28 +42,43 @@ def _retry(fn, *, attempts: int = 3, delay: float = 1.5):
     raise last_exc
 
 
-@lru_cache(maxsize=1)
-def load_spot_board() -> pd.DataFrame:
-    """Cache A-share spot board for one process run."""
-
-    def _load():
-        spot = ak.stock_zh_a_spot_em()
-        spot = spot.copy()
-        spot["代码"] = spot["代码"].astype(str).str.zfill(6)
-        return spot
-
-    return _retry(_load)
-
-
 def fetch_daily_history(code: str, lookback_days: int = 120) -> pd.DataFrame:
-    """Return recent daily OHLCV for a symbol (enough rows for MA30)."""
+    """Return recent daily OHLCV (enough rows for MA30)."""
     code = _normalize_code(code)
+    symbol = to_sina_symbol(code)
     end = datetime.now()
     start = end - timedelta(days=lookback_days)
     start_s = start.strftime("%Y%m%d")
     end_s = end.strftime("%Y%m%d")
 
-    def _load():
+    def _from_sina():
+        df = ak.stock_zh_a_daily(
+            symbol=symbol,
+            start_date=start_s,
+            end_date=end_s,
+            adjust="qfq",
+        )
+        if df is None or df.empty:
+            raise ValueError(f"新浪日线为空: {symbol}")
+        # columns: date, open, high, low, close, volume, ...
+        out = df.rename(columns=str.lower).copy()
+        out["date"] = pd.to_datetime(out["date"])
+        return out.sort_values("date").reset_index(drop=True)
+
+    def _from_tx():
+        df = ak.stock_zh_a_hist_tx(
+            symbol=symbol,
+            start_date=start_s,
+            end_date=end_s,
+            adjust="qfq",
+        )
+        if df is None or df.empty:
+            raise ValueError(f"腾讯日线为空: {symbol}")
+        out = df.rename(columns=str.lower).copy()
+        out["date"] = pd.to_datetime(out["date"])
+        return out.sort_values("date").reset_index(drop=True)
+
+    def _from_em():
         df = ak.stock_zh_a_hist(
             symbol=code,
             period="daily",
@@ -59,34 +87,54 @@ def fetch_daily_history(code: str, lookback_days: int = 120) -> pd.DataFrame:
             adjust="qfq",
         )
         if df is None or df.empty:
-            raise ValueError(f"无日线数据: {code}")
-        return df
+            raise ValueError(f"东财日线为空: {code}")
+        rename = {
+            "日期": "date",
+            "开盘": "open",
+            "收盘": "close",
+            "最高": "high",
+            "最低": "low",
+            "成交量": "volume",
+        }
+        out = df.rename(columns=rename)
+        out["date"] = pd.to_datetime(out["date"])
+        return out.sort_values("date").reset_index(drop=True)
 
-    df = _retry(_load)
-    rename = {
-        "日期": "date",
-        "开盘": "open",
-        "收盘": "close",
-        "最高": "high",
-        "最低": "low",
-        "成交量": "volume",
-    }
-    df = df.rename(columns=rename)
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date").reset_index(drop=True)
-    return df
+    errors: list[str] = []
+    for loader in (_from_sina, _from_tx, _from_em):
+        try:
+            return _retry(loader, attempts=2, delay=1.0)
+        except Exception as exc:
+            errors.append(f"{loader.__name__}: {exc}")
+    raise RuntimeError(f"{code} 日线拉取失败: " + " | ".join(errors))
 
 
 def lookup_spot(code: str) -> tuple[float | None, str]:
-    """Return (latest_price, name) from spot board if available."""
+    """
+    Latest price via Sina hq API (lightweight, no full-market board).
+    Returns (price, name).
+    """
     code = _normalize_code(code)
+    symbol = to_sina_symbol(code)
+    url = f"https://hq.sinajs.cn/list={symbol}"
     try:
-        spot = load_spot_board()
-        row = spot.loc[spot["代码"] == code]
-        if row.empty:
+        resp = requests.get(
+            url,
+            headers={"Referer": "https://finance.sina.com.cn"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        # var hq_str_sh600519="贵州茅台,open,...,price,...";
+        text = resp.content.decode("gbk", errors="ignore")
+        if '=""' in text or '="' not in text:
             return None, ""
-        price = float(row.iloc[0]["最新价"])
-        name = str(row.iloc[0].get("名称", "") or "")
+        payload = text.split('="', 1)[1].rstrip('";\n')
+        parts = payload.split(",")
+        if len(parts) < 4:
+            return None, ""
+        name = parts[0].strip()
+        # field 3 is current price on sina hq
+        price = float(parts[3])
         if price <= 0:
             return None, name
         return price, name
