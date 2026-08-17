@@ -51,13 +51,16 @@ def run(watchlist_path: Path, dry_run: bool = False, force: bool = False) -> int
     for item in stocks:
         code = str(item.get("code", "")).strip()
         name = str(item.get("name") or "").strip()
+        market = str(item.get("market") or "cn").strip().lower()
         if not code:
             continue
+        state_key = f"{market}:{code}"
         try:
-            snap = build_snapshot(code, name=name)
+            snap = build_snapshot(code, name=name, market=market)
             signal = is_touching_ma30(snap, touch_pct)
             log.info(
-                "%s(%s) price=%.2f ma30=%.2f dev=%+.2f%% touch=±%.2f%%",
+                "[%s] %s(%s) price=%.2f ma30=%.2f dev=%+.2f%% touch=±%.2f%%",
+                market.upper(),
                 snap.name,
                 snap.code,
                 snap.price,
@@ -67,8 +70,8 @@ def run(watchlist_path: Path, dry_run: bool = False, force: bool = False) -> int
             )
             if signal is None:
                 continue
-            if not force and state.already_alerted(snap.code):
-                log.info("今日已提醒过 %s，跳过", snap.code)
+            if not force and state.already_alerted(state_key):
+                log.info("今日已提醒过 %s，跳过", state_key)
                 continue
 
             text = signal.message
@@ -76,12 +79,12 @@ def run(watchlist_path: Path, dry_run: bool = False, force: bool = False) -> int
                 log.info("[dry-run] 将发送:\n%s", text)
             else:
                 channel = send_alert(text)
-                log.info("已通过 %s 发送提醒: %s", channel, snap.code)
-            state.mark_alerted(snap.code)
+                log.info("已通过 %s 发送提醒: %s", channel, state_key)
+                state.mark_alerted(state_key)
             alerts += 1
         except Exception as exc:
             errors += 1
-            log.exception("处理 %s 失败: %s", code, exc)
+            log.exception("处理 %s 失败: %s", state_key, exc)
 
     log.info("完成：触发 %d 条，失败 %d 只", alerts, errors)
     return 1 if errors and alerts == 0 else 0

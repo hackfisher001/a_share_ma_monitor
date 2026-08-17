@@ -41,10 +41,10 @@ class AlertState:
         )
 
     def already_alerted(self, code: str) -> bool:
-        return str(code).zfill(6) in self._data["alerted"]
+        return str(code) in self._data["alerted"]
 
     def mark_alerted(self, code: str) -> None:
-        code = str(code).zfill(6)
+        code = str(code)
         if code not in self._data["alerted"]:
             self._data["alerted"].append(code)
         self._data["date"] = _today()

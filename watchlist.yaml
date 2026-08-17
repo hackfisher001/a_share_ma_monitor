@@ -1,9 +1,54 @@
-# 监控列表：A 股代码（6 位）+ 可选备注
+# 核心资产监控列表
 # 阈值：现价相对 30 日均线偏离绝对值 ≤ touch_pct 时触发买入提醒
 touch_pct: 0.5
 
 stocks:
+  # —— 白酒 ——
   - code: "600519"
     name: "贵州茅台"
-  - code: "000001"
-    name: "平安银行"
+    market: cn
+  - code: "000858"
+    name: "五粮液"
+    market: cn
+  - code: "000568"
+    name: "泸州老窖"
+    market: cn
+
+  # —— 中药 / 消费 ——
+  - code: "600436"
+    name: "片仔癀"
+    market: cn
+  - code: "600329"
+    name: "达仁堂"
+    market: cn
+  - code: "600085"
+    name: "同仁堂"
+    market: cn
+  - code: "000538"
+    name: "云南白药"
+    market: cn
+  - code: "000423"
+    name: "东阿阿胶"
+    market: cn
+  - code: "600887"
+    name: "伊利股份"
+    market: cn
+
+  # —— 金融 ——
+  - code: "600036"
+    name: "招商银行"
+    market: cn
+
+  # —— 科技 / 能源 ——
+  - code: "00700"
+    name: "腾讯控股"
+    market: hk
+  - code: "600584"
+    name: "长电科技"
+    market: cn
+  - code: "601088"
+    name: "中国神华"
+    market: cn
+  - code: "600938"
+    name: "中国海油"
+    market: cn
