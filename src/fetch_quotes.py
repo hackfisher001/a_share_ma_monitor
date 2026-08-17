@@ -163,12 +163,37 @@ def fetch_daily_history_hk(code: str, lookback_days: int = 420) -> pd.DataFrame:
 
 
 def fetch_daily_history_us(code: str, lookback_days: int = 420) -> pd.DataFrame:
-    """Prefer akshare US daily (reachable from CN cloud); yfinance as last resort."""
+    """Prefer CN-reachable sources; yfinance only as last resort."""
     code = _normalize_us(code)
     end = datetime.now()
     start = end - timedelta(days=lookback_days)
 
+    # Aliyun often cannot reach Yahoo. Gold/BTC work via akshare foreign futures.
+    foreign_map = {
+        "GC=F": "XAU",
+        "XAU": "XAU",
+        "XAUUSD": "XAU",
+        "BTC-USD": "BTC",
+        "BTCUSD": "BTC",
+        "BTC": "BTC",
+    }
+
+    def _from_foreign_hist():
+        symbol = foreign_map.get(code)
+        if not symbol:
+            raise ValueError(f"非外盘标的: {code}")
+        df = ak.futures_foreign_hist(symbol=symbol)
+        if df is None or df.empty:
+            raise ValueError(f"外盘日线为空: {symbol}")
+        out = _ensure_ohlc(df)
+        filtered = out[(out["date"] >= pd.Timestamp(start)) & (out["date"] <= pd.Timestamp(end))]
+        if len(filtered) >= 30:
+            return filtered.reset_index(drop=True)
+        return out.reset_index(drop=True)
+
     def _from_ak_daily():
+        if code in foreign_map:
+            raise ValueError(f"跳过 stock_us_daily: {code}")
         df = ak.stock_us_daily(symbol=code, adjust="qfq")
         if df is None or df.empty:
             raise ValueError(f"akshare 美股 daily 为空: {code}")
@@ -197,8 +222,13 @@ def fetch_daily_history_us(code: str, lookback_days: int = 420) -> pd.DataFrame:
         )
         return _ensure_ohlc(out)
 
+    loaders = []
+    if code in foreign_map:
+        loaders.append((_from_foreign_hist, 2))
+    loaders.extend([(_from_ak_daily, 2), (_from_yf, 1)])
+
     errors: list[str] = []
-    for loader, attempts in ((_from_ak_daily, 2), (_from_yf, 1)):
+    for loader, attempts in loaders:
         try:
             return _retry(loader, attempts=attempts, delay=1.0)
         except Exception as exc:
