@@ -1,4 +1,4 @@
-"""Alert deduplication: same-day for MA30, multi-day cooldown for drawdowns."""
+"""Alert deduplication: same-day MA30, per-episode drawdown level tracking."""
 
 from __future__ import annotations
 
@@ -15,7 +15,12 @@ class AlertState:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._data: dict = {"date": _today(), "alerted": [], "cooldown": {}}
+        self._data: dict = {
+            "date": _today(),
+            "alerted": [],
+            "cooldown": {},
+            "drawdown_fired": {},
+        }
         self._load()
 
     def _load(self) -> None:
@@ -25,10 +30,22 @@ class AlertState:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return
-        # Cooldown timestamps must outlive the daily reset.
+        # Cooldown + drawdown episode flags must outlive the daily reset.
         cooldown = {str(k): str(v) for k, v in (raw.get("cooldown") or {}).items()}
+        fired_raw = raw.get("drawdown_fired") or {}
+        drawdown_fired: dict[str, list[float]] = {}
+        for key, levels in fired_raw.items():
+            try:
+                drawdown_fired[str(key)] = sorted({abs(float(x)) for x in (levels or [])})
+            except (TypeError, ValueError):
+                continue
         alerted = [] if raw.get("date") != _today() else list(raw.get("alerted") or [])
-        self._data = {"date": _today(), "alerted": alerted, "cooldown": cooldown}
+        self._data = {
+            "date": _today(),
+            "alerted": alerted,
+            "cooldown": cooldown,
+            "drawdown_fired": drawdown_fired,
+        }
 
     def save(self) -> None:
         self.path.write_text(
@@ -60,3 +77,21 @@ class AlertState:
         self._data["cooldown"][str(key)] = _today()
         self._data["date"] = _today()
         self.save()
+
+    def drawdown_fired_levels(self, key: str) -> list[float]:
+        return list(self._data["drawdown_fired"].get(str(key), []))
+
+    def mark_drawdown_level(self, key: str, level: float) -> None:
+        key = str(key)
+        levels = set(self._data["drawdown_fired"].get(key, []))
+        levels.add(abs(float(level)))
+        self._data["drawdown_fired"][key] = sorted(levels)
+        self._data["date"] = _today()
+        self.save()
+
+    def clear_drawdown_levels(self, key: str) -> None:
+        key = str(key)
+        if key in self._data["drawdown_fired"]:
+            del self._data["drawdown_fired"][key]
+            self._data["date"] = _today()
+            self.save()

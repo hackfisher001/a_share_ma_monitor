@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 from src.digest import run_digest
 from src.fetch_quotes import build_snapshot
 from src.notify import send_alert, send_test_ping
-from src.signals import is_deep_drawdown, is_touching_ma30
+from src.signals import DEFAULT_DRAWDOWN_LEVELS, crossed_drawdown_levels, is_touching_ma30
 from src.state import AlertState
 
 logging.basicConfig(
@@ -33,19 +33,28 @@ log = logging.getLogger("ma_monitor")
 @dataclass
 class ScanConfig:
     touch_pct: float
-    drawdown_pct: float
+    drawdown_levels: tuple[float, ...]
     drawdown_markets: tuple[str, ...]
-    drawdown_cooldown_days: int
+    # When drawdown recovers above -reset_pct, clear fired bands for a new episode.
+    drawdown_reset_pct: float
 
 
 def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    markets = data.get("drawdown_markets") or ["cn"]
+    markets = data.get("drawdown_markets") or ["cn", "us"]
+    raw_levels = data.get("drawdown_levels")
+    if raw_levels:
+        levels = tuple(sorted({abs(float(x)) for x in raw_levels}))
+    elif data.get("drawdown_pct") is not None:
+        # Backward compatible with the old single-threshold config.
+        levels = (abs(float(data["drawdown_pct"])),)
+    else:
+        levels = DEFAULT_DRAWDOWN_LEVELS
     config = ScanConfig(
         touch_pct=float(data.get("touch_pct", 0.5)),
-        drawdown_pct=float(data.get("drawdown_pct", 30)),
+        drawdown_levels=levels,
         drawdown_markets=tuple(str(m).strip().lower() for m in markets),
-        drawdown_cooldown_days=int(data.get("drawdown_cooldown_days", 30)),
+        drawdown_reset_pct=abs(float(data.get("drawdown_reset_pct", 3))),
     )
     stocks = data.get("stocks") or []
     if not stocks:
@@ -100,29 +109,33 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 else:
                     log.info("今日已提醒过 %s，跳过", state_key)
 
-            # Deep drawdown only for markets where the backtest supports it (A股).
+            # Multi-level drawdown observe alerts (each band once per episode).
             if market in config.drawdown_markets:
-                dd_signal = is_deep_drawdown(snap, config.drawdown_pct)
-                dd_key = f"dd:{state_key}"
-                if dd_signal is not None:
-                    if force or not state.in_cooldown(
-                        dd_key, config.drawdown_cooldown_days
-                    ):
-                        if dry_run:
-                            log.info("[dry-run] 深度回撤将发送:\n%s", dd_signal.message)
-                        else:
-                            channel = send_alert(
-                                dd_signal.message, title="重仓提醒 · 深度回撤"
-                            )
-                            log.info("已通过 %s 发送回撤提醒: %s", channel, dd_key)
-                            state.mark_cooldown(dd_key)
-                        alerts += 1
+                if drawdown > -config.drawdown_reset_pct:
+                    state.clear_drawdown_levels(state_key)
+                already = () if force else state.drawdown_fired_levels(state_key)
+                dd_signals = crossed_drawdown_levels(
+                    snap, config.drawdown_levels, already_fired=already
+                )
+                for dd_signal in dd_signals:
+                    level = dd_signal.threshold_pct
+                    title = (
+                        f"回撤观察 · 超过{level:g}%"
+                        if level >= 30
+                        else f"回撤观察 · {level:g}%"
+                    )
+                    if dry_run:
+                        log.info("[dry-run] %s 将发送:\n%s", title, dd_signal.message)
                     else:
+                        channel = send_alert(dd_signal.message, title=title)
                         log.info(
-                            "%s 仍在 %d 天冷却期内，跳过",
-                            dd_key,
-                            config.drawdown_cooldown_days,
+                            "已通过 %s 发送回撤提醒: %s -%g%%",
+                            channel,
+                            state_key,
+                            level,
                         )
+                        state.mark_drawdown_level(state_key, level)
+                    alerts += 1
         except Exception as exc:
             errors += 1
             log.exception("处理 %s 失败: %s", state_key, exc)
@@ -133,7 +146,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="股价监控：MA30 触及 + A股深度回撤 + 每日涨跌日报"
+        description="股价监控：MA30 触及 + 多档回撤观察 + 每日涨跌日报"
     )
     parser.add_argument("-c", "--config", default=str(ROOT / "watchlist.yaml"))
     parser.add_argument("--dry-run", action="store_true", help="只计算，不发 Webhook")

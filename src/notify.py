@@ -31,8 +31,10 @@ def send_feishu(
 
     if "日报" in title:
         template = "blue"
-    elif "回撤" in title:
+    elif "超过" in title or "30%" in title or "40%" in title or "50%" in title:
         template = "red"
+    elif "回撤" in title:
+        template = "yellow"
     else:
         template = "orange"
     # Feishu card text soft limit — truncate politely if oversized

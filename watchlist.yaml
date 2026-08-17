@@ -2,13 +2,14 @@
 # touch_pct: 现价相对 MA30 偏离 ≤ 该值时发加仓提醒（小额）
 touch_pct: 0.5
 
-# 深度回撤重仓信号：现价较近一年（252 个交易日）收盘高点回撤 ≥ 该值时提醒。
-# 回测显示该信号仅在 A 股有效；美股深跌越等越差，故不纳入 us。
-drawdown_pct: 30
+# 回撤观察（信息提醒，不改变定投主仓）：
+# 现价较近一年（252 个交易日）收盘高点回撤，每跨过一档提醒一次。
+# 回升到 -drawdown_reset_pct 以内后清空档位，下一轮下跌重新提醒。
+drawdown_levels: [5, 10, 15, 20, 30, 40, 50]
+drawdown_reset_pct: 3
 drawdown_markets:
   - cn
-# 回撤状态会持续数周，冷却期避免同一轮下跌反复提醒
-drawdown_cooldown_days: 30
+  - us
 
 stocks:
   # —— A股个股 ——

@@ -2,6 +2,7 @@
 
 from src.signals import (
     QuoteSnapshot,
+    crossed_drawdown_levels,
     deviation_pct,
     drawdown_pct_from_high,
     is_deep_drawdown,
@@ -76,3 +77,24 @@ def test_deep_drawdown_needs_enough_history():
 
 def test_deep_drawdown_requires_valid_high():
     assert is_deep_drawdown(_snap(70.0, 0.0), 30) is None
+
+
+def test_crossed_levels_fire_new_bands_only():
+    # -22% should newly cross 5/10/15/20, not 30+
+    sigs = crossed_drawdown_levels(
+        _snap(78.0, 100.0),
+        [5, 10, 15, 20, 30, 40, 50],
+        already_fired=[5, 10],
+    )
+    assert [s.threshold_pct for s in sigs] == [15, 20]
+    assert "仅供观察" in sigs[0].message
+
+
+def test_crossed_levels_include_deep_bands():
+    sigs = crossed_drawdown_levels(
+        _snap(55.0, 100.0),
+        [5, 10, 15, 20, 30, 40, 50],
+        already_fired=(),
+    )
+    assert [s.threshold_pct for s in sigs] == [5, 10, 15, 20, 30, 40]
+    assert "超过 40%" in sigs[-1].band_label

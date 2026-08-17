@@ -1,4 +1,4 @@
-"""Buy signals: MA30 touch, and deep drawdown from the 1-year high."""
+"""Buy / observe signals: MA30 touch, and multi-level drawdown from the 1-year high."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass
 HIGH_WINDOW = 252
 # Below this many daily bars the 1-year high is not yet meaningful.
 MIN_HISTORY_FOR_DRAWDOWN = 120
+DEFAULT_DRAWDOWN_LEVELS = (5, 10, 15, 20, 30, 40, 50)
 
 
 @dataclass
@@ -55,12 +56,20 @@ class DrawdownSignal:
     as_of: str
 
     @property
+    def band_label(self) -> str:
+        level = abs(self.threshold_pct)
+        if level >= 30:
+            return f"回撤超过 {level:g}%"
+        return f"回撤达到 {level:g}%"
+
+    @property
     def message(self) -> str:
         return (
-            f"**{self.name}({self.code})** 较一年高点深度回撤\n"
+            f"**{self.name}({self.code})** 较一年高点{self.band_label}\n"
             f"现价 **{self.price:.2f}**　一年高点 **{self.high_252:.2f}**\n"
-            f"回撤 **{self.drawdown_pct:+.2f}%**（阈值 -{self.threshold_pct:g}%）\n"
-            f"日线截至 {self.as_of}"
+            f"当前回撤 **{self.drawdown_pct:+.2f}%**（本档阈值 -{self.threshold_pct:g}%）\n"
+            f"日线截至 {self.as_of}\n"
+            f"仅供观察；主仓定投请按计划继续，勿因单档回撤空仓等待。"
         ).strip()
 
 
@@ -99,17 +108,39 @@ def is_deep_drawdown(
     min_history: int = MIN_HISTORY_FOR_DRAWDOWN,
 ) -> DrawdownSignal | None:
     """Trigger when price sits at or below -threshold_pct off the 1-year high."""
-    if snapshot.high_252 <= 0 or snapshot.history_rows < min_history:
-        return None
-    dd = drawdown_pct_from_high(snapshot.price, snapshot.high_252)
-    if dd > -abs(threshold_pct):
-        return None
-    return DrawdownSignal(
-        code=snapshot.code,
-        name=snapshot.name,
-        price=snapshot.price,
-        high_252=snapshot.high_252,
-        drawdown_pct=dd,
-        threshold_pct=abs(threshold_pct),
-        as_of=snapshot.as_of,
+    signals = crossed_drawdown_levels(
+        snapshot,
+        [threshold_pct],
+        already_fired=(),
+        min_history=min_history,
     )
+    return signals[0] if signals else None
+
+
+def crossed_drawdown_levels(
+    snapshot: QuoteSnapshot,
+    levels: list[float] | tuple[float, ...],
+    already_fired: list[float] | tuple[float, ...] | set[float] = (),
+    *,
+    min_history: int = MIN_HISTORY_FOR_DRAWDOWN,
+) -> list[DrawdownSignal]:
+    """Return newly crossed drawdown bands (each band fires once per episode)."""
+    if snapshot.high_252 <= 0 or snapshot.history_rows < min_history:
+        return []
+    dd = drawdown_pct_from_high(snapshot.price, snapshot.high_252)
+    fired = {abs(float(x)) for x in already_fired}
+    out: list[DrawdownSignal] = []
+    for raw in sorted({abs(float(x)) for x in levels}):
+        if dd <= -raw and raw not in fired:
+            out.append(
+                DrawdownSignal(
+                    code=snapshot.code,
+                    name=snapshot.name,
+                    price=snapshot.price,
+                    high_252=snapshot.high_252,
+                    drawdown_pct=dd,
+                    threshold_pct=raw,
+                    as_of=snapshot.as_of,
+                )
+            )
+    return out
