@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import re
 from typing import Any
 
 import requests
 
+log = logging.getLogger(__name__)
+
 TableColumn = dict[str, str]  # keys: name, display_name; optional data_type/width
 TableSpec = dict[str, Any]  # keys: columns, rows; optional title, page_size
+
+_DISCLAIMER = "仅供个人提醒，不构成投资建议"
+_WIDTH_PX_RE = re.compile(r"^(\d+)px$")
 
 
 def _post_json(url: str, payload: dict, timeout: float = 15.0) -> None:
@@ -33,22 +40,40 @@ def _header_template(title: str) -> str:
     return "orange"
 
 
+def _normalize_width(width: str | None) -> str:
+    """Feishu table column width must be auto, %, or [80px, 600px]."""
+    if not width or width == "auto":
+        return "auto"
+    if width.endswith("%"):
+        return width
+    m = _WIDTH_PX_RE.match(width)
+    if not m:
+        return "auto"
+    px = max(80, min(600, int(m.group(1))))
+    return f"{px}px"
+
+
 def _table_element(spec: TableSpec) -> dict[str, Any]:
     columns = []
     for col in spec["columns"]:
+        data_type = col.get("data_type") or (
+            "lark_md" if col["name"] == "name" else "text"
+        )
         columns.append(
             {
                 "name": col["name"],
                 "display_name": col.get("display_name") or col["name"],
-                "data_type": col.get("data_type") or "lark_md",
-                "width": col.get("width") or "auto",
-                "horizontal_align": col.get("align") or "left",
+                "data_type": data_type,
+                "width": _normalize_width(col.get("width")),
+                "horizontal_align": col.get("align")
+                or ("left" if col["name"] in {"name", "code"} else "right"),
             }
         )
     return {
         "tag": "table",
         "page_size": int(spec.get("page_size") or min(10, max(1, len(spec.get("rows") or [])))),
         "row_height": "low",
+        "freeze_first_column": True,
         "header_style": {
             "text_align": "left",
             "text_size": "normal",
@@ -66,13 +91,18 @@ def _markdown_fallback_table(spec: TableSpec) -> str:
     cols = spec["columns"]
     headers = [c.get("display_name") or c["name"] for c in cols]
     keys = [c["name"] for c in cols]
-    lines = [" | ".join(f"**{h}**" for h in headers), " | ".join(["---"] * len(headers))]
+    # Keep cells single-line; Feishu lark_md does not render pipe tables.
+    lines = [
+        f"**{spec['title']}**" if spec.get("title") else "",
+        " · ".join(f"**{h}**" for h in headers),
+    ]
     for row in spec.get("rows") or []:
-        lines.append(" | ".join(str(row.get(k, "—")) for k in keys))
-    title = spec.get("title")
-    if title:
-        return f"**{title}**\n" + "\n".join(lines)
-    return "\n".join(lines)
+        cells = []
+        for k in keys:
+            val = str(row.get(k, "—")).replace("\n", " ")
+            cells.append(val)
+        lines.append(" · ".join(cells))
+    return "\n".join(x for x in lines if x)
 
 
 def send_feishu(
@@ -87,7 +117,7 @@ def send_feishu(
     Send Feishu interactive card.
 
     Prefer Card JSON 2.0 with native tables; fall back to markdown/text.
-    `markdown` / `text` support **bold** via lark_md / markdown.
+    Schema 2.0 does not support the legacy `note` tag — use markdown disclaimer.
     """
     url = webhook_url or os.getenv("FEISHU_WEBHOOK_URL", "").strip()
     if not url:
@@ -106,12 +136,7 @@ def send_feishu(
             elements.append({"tag": "markdown", "content": f"**{spec['title']}**"})
         elements.append(_table_element(spec))
     elements.append(
-        {
-            "tag": "note",
-            "elements": [
-                {"tag": "plain_text", "content": "仅供个人提醒，不构成投资建议"}
-            ],
-        }
+        {"tag": "markdown", "content": f"<font color='grey'>{_DISCLAIMER}</font>"}
     )
 
     card_v2: dict[str, Any] = {
@@ -126,12 +151,13 @@ def send_feishu(
         },
     }
 
-    # Legacy card (1.0): markdown + optional text tables
+    # Legacy card (1.0): markdown + flattened tables (no pipe syntax).
     legacy_parts = []
     if body_md.strip():
         legacy_parts.append(body_md)
     for spec in tables or []:
         legacy_parts.append(_markdown_fallback_table(spec))
+    legacy_parts.append(_DISCLAIMER)
     legacy_body = "\n\n".join(legacy_parts) or title
     if len(legacy_body) > 4500:
         legacy_body = legacy_body[:4400] + "\n\n…（内容过长已截断）"
@@ -147,25 +173,18 @@ def send_feishu(
                     "tag": "div",
                     "text": {"tag": "lark_md", "content": legacy_body},
                 },
-                {
-                    "tag": "note",
-                    "elements": [
-                        {
-                            "tag": "plain_text",
-                            "content": "仅供个人提醒，不构成投资建议",
-                        }
-                    ],
-                },
             ],
         },
     }
 
     try:
         _post_json(url, card_v2)
-    except Exception:
+    except Exception as exc:
+        log.warning("飞书 Card 2.0 发送失败，回退旧版卡片: %s", exc)
         try:
             _post_json(url, card_v1)
-        except Exception:
+        except Exception as exc2:
+            log.warning("飞书 Card 1.0 发送失败，回退纯文本: %s", exc2)
             _post_json(
                 url,
                 {"msg_type": "text", "content": {"text": f"{title}\n{legacy_body}"}},

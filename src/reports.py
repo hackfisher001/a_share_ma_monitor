@@ -147,7 +147,8 @@ def _row_daily(bundle: QuoteBundle) -> dict[str, str]:
         else None
     )
     return {
-        "name": f"**{bundle.name}**\n{bundle.code}",
+        "name": f"**{bundle.name}**",
+        "code": str(bundle.code),
         "price": f"{bundle.price:.2f}",
         "d1": _fmt_pct(st["1日"]),
         "d3": _fmt_pct(st["3日"]),
@@ -165,7 +166,8 @@ def _row_weekly(bundle: QuoteBundle) -> dict[str, str]:
         else None
     )
     return {
-        "name": f"**{bundle.name}**\n{bundle.code}",
+        "name": f"**{bundle.name}**",
+        "code": str(bundle.code),
         "price": f"{bundle.price:.2f}",
         "w1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 7)),
         "m1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 30)),
@@ -182,7 +184,8 @@ def _row_monthly(bundle: QuoteBundle) -> dict[str, str]:
         else None
     )
     return {
-        "name": f"**{bundle.name}**\n{bundle.code}",
+        "name": f"**{bundle.name}**",
+        "code": str(bundle.code),
         "price": f"{bundle.price:.2f}",
         "m1": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 30)),
         "m3": _fmt_pct(change_by_calendar_days(bundle.hist, bundle.price, 91)),
@@ -194,34 +197,36 @@ def _row_monthly(bundle: QuoteBundle) -> dict[str, str]:
 
 
 def _columns_for(kind: str) -> list[dict[str, str]]:
+    # Feishu table column width minimum is 80px.
+    name_cols = [
+        {"name": "name", "display_name": "名称", "width": "110px", "data_type": "lark_md"},
+        {"name": "code", "display_name": "代码", "width": "80px", "data_type": "text"},
+    ]
     if kind == "weekly":
-        return [
-            {"name": "name", "display_name": "名称", "width": "110px"},
-            {"name": "price", "display_name": "现价", "width": "70px"},
-            {"name": "w1", "display_name": "1周", "width": "75px"},
-            {"name": "m1", "display_name": "1月", "width": "75px"},
-            {"name": "ma", "display_name": "较MA30", "width": "80px"},
-            {"name": "dd", "display_name": "一年回撤", "width": "85px"},
+        return name_cols + [
+            {"name": "price", "display_name": "现价", "width": "80px"},
+            {"name": "w1", "display_name": "1周", "width": "80px"},
+            {"name": "m1", "display_name": "1月", "width": "80px"},
+            {"name": "ma", "display_name": "较MA30", "width": "90px"},
+            {"name": "dd", "display_name": "一年回撤", "width": "90px"},
         ]
     if kind == "monthly":
-        return [
-            {"name": "name", "display_name": "名称", "width": "110px"},
-            {"name": "price", "display_name": "现价", "width": "70px"},
-            {"name": "m1", "display_name": "1月", "width": "70px"},
-            {"name": "m3", "display_name": "3月", "width": "70px"},
-            {"name": "h1", "display_name": "半年", "width": "70px"},
-            {"name": "y1", "display_name": "1年", "width": "70px"},
-            {"name": "ma", "display_name": "较MA30", "width": "75px"},
-            {"name": "dd", "display_name": "一年回撤", "width": "80px"},
+        return name_cols + [
+            {"name": "price", "display_name": "现价", "width": "80px"},
+            {"name": "m1", "display_name": "1月", "width": "80px"},
+            {"name": "m3", "display_name": "3月", "width": "80px"},
+            {"name": "h1", "display_name": "半年", "width": "80px"},
+            {"name": "y1", "display_name": "1年", "width": "80px"},
+            {"name": "ma", "display_name": "较MA30", "width": "90px"},
+            {"name": "dd", "display_name": "一年回撤", "width": "90px"},
         ]
-    return [
-        {"name": "name", "display_name": "名称", "width": "110px"},
-        {"name": "price", "display_name": "现价", "width": "70px"},
-        {"name": "d1", "display_name": "1日", "width": "70px"},
-        {"name": "d3", "display_name": "3日", "width": "70px"},
-        {"name": "w1", "display_name": "1周", "width": "70px"},
-        {"name": "ma", "display_name": "较MA30", "width": "80px"},
-        {"name": "dd", "display_name": "一年回撤", "width": "85px"},
+    return name_cols + [
+        {"name": "price", "display_name": "现价", "width": "80px"},
+        {"name": "d1", "display_name": "1日", "width": "80px"},
+        {"name": "d3", "display_name": "3日", "width": "80px"},
+        {"name": "w1", "display_name": "1周", "width": "80px"},
+        {"name": "ma", "display_name": "较MA30", "width": "90px"},
+        {"name": "dd", "display_name": "一年回撤", "width": "90px"},
     ]
 
 
@@ -266,7 +271,7 @@ def _build_tables(kind: str, bundles: list[QuoteBundle]) -> list[dict]:
 def _market_header(kind: str, bundles: list[QuoteBundle]) -> str:
     return (
         f"**共 {len(bundles)} 只**｜{date.today().isoformat()}\n"
-        f"绿色不必看颜色，请直接对比涨跌幅列；名称已 **加粗**。"
+        f"请直接对比涨跌幅列；名称已 **加粗**。"
     )
 
 

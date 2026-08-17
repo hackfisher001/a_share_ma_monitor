@@ -51,5 +51,6 @@ crontab -l | grep run_once || true
 echo
 echo "飞书连通测试： ./scripts/run_once.sh --notify-test"
 echo "MA30 试跑：     ./scripts/run_once.sh --dry-run"
-echo "日报试跑：     ./scripts/run_once.sh --digest --dry-run"
-echo "正式日报：     ./scripts/run_once.sh --digest"
+echo "日报： ./scripts/run_once.sh --report daily"
+echo "周报： ./scripts/run_once.sh --report weekly"
+echo "月报： ./scripts/run_once.sh --report monthly"

@@ -56,3 +56,25 @@ def test_markdown_fallback_table():
     assert "**科技ETF**" in text
     assert "**名称**" in text
     assert "**芯片**" in text
+
+
+def test_normalize_width_enforces_min_80px():
+    assert notify._normalize_width("70px") == "80px"
+    assert notify._normalize_width("120px") == "120px"
+    assert notify._normalize_width("auto") == "auto"
+
+
+def test_table_element_schema():
+    el = notify._table_element(
+        {
+            "columns": [
+                {"name": "name", "display_name": "名称", "width": "70px"},
+                {"name": "d1", "display_name": "1日", "width": "80px"},
+            ],
+            "rows": [{"name": "**A**", "d1": "-1%"}],
+        }
+    )
+    assert el["tag"] == "table"
+    assert el["columns"][0]["width"] == "80px"
+    assert el["columns"][0]["data_type"] == "lark_md"
+    assert el["freeze_first_column"] is True
