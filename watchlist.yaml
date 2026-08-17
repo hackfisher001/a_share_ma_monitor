@@ -16,60 +16,131 @@ stocks:
   - code: "600036"
     name: "招商银行"
     market: cn
+    theme: stock
   - code: "600584"
     name: "长电科技"
     market: cn
+    theme: stock
   - code: "601088"
     name: "中国神华"
     market: cn
+    theme: stock
+  # 注意：300024 公开行情为「机器人」股票，不是纳指ETF
+  - code: "300024"
+    name: "机器人"
+    market: cn
+    theme: stock
 
   # —— 境内纳指相关 ETF ——
   - code: "159509"
     name: "纳指科技ETF"
     market: cn
+    theme: nasdaq_cn
   - code: "159941"
     name: "纳指ETF广发"
     market: cn
-  # 注意：300024 公开行情为「机器人」股票，不是纳指ETF；若本意是国泰纳指ETF请改为 513100
-  - code: "300024"
-    name: "机器人"
+    theme: nasdaq_cn
+
+  # —— 科技类板块 ETF ——
+  - code: "588000"
+    name: "科创50ETF"
     market: cn
+    theme: tech_etf
+  - code: "159915"
+    name: "创业板ETF"
+    market: cn
+    theme: tech_etf
+  - code: "512480"
+    name: "半导体ETF"
+    market: cn
+    theme: tech_etf
+  - code: "159995"
+    name: "芯片ETF"
+    market: cn
+    theme: tech_etf
+  - code: "159819"
+    name: "人工智能ETF"
+    market: cn
+    theme: tech_etf
+  - code: "515050"
+    name: "5GETF"
+    market: cn
+    theme: tech_etf
+  - code: "515790"
+    name: "光伏ETF"
+    market: cn
+    theme: tech_etf
+  - code: "515030"
+    name: "新能源车ETF"
+    market: cn
+    theme: tech_etf
+
+  # —— 其他主要板块 ETF ——
+  - code: "510300"
+    name: "沪深300ETF"
+    market: cn
+    theme: sector_etf
+  - code: "512010"
+    name: "医药ETF"
+    market: cn
+    theme: sector_etf
+  - code: "512800"
+    name: "银行ETF"
+    market: cn
+    theme: sector_etf
+  - code: "512690"
+    name: "酒ETF"
+    market: cn
+    theme: sector_etf
+  - code: "512660"
+    name: "军工ETF"
+    market: cn
+    theme: sector_etf
 
   # —— 美股 ——
   - code: "TSLA"
     name: "特斯拉"
     market: us
+    theme: stock
   - code: "SNDK"
     name: "闪迪"
     market: us
+    theme: stock
   - code: "AMD"
     name: "超威/AMD"
     market: us
+    theme: stock
   - code: "SPCX"
     name: "SpaceX"
     market: us
+    theme: stock
   - code: "GOOGL"
     name: "谷歌"
     market: us
+    theme: stock
   - code: "AAPL"
     name: "苹果"
     market: us
+    theme: stock
   - code: "NVDA"
     name: "英伟达"
     market: us
+    theme: stock
   - code: "MU"
     name: "美光"
     market: us
+    theme: stock
   - code: "QQQM"
     name: "纳指100ETF"
     market: us
+    theme: nasdaq_us
 
   # —— 大宗 / 贵金属 / 加密货币 ——
-  # COMEX 黄金期货连续合约（美元/盎司）
   - code: "GC=F"
     name: "国际黄金"
     market: us
-  # 比特币现货（美元）
+    theme: macro
   - code: "BTC-USD"
     name: "比特币"
     market: us
+    theme: macro

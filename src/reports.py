@@ -24,34 +24,46 @@ REPORT_TITLES = {
     "monthly": "持仓月报",
 }
 
+THEME_LABELS = {
+    "stock": "个股",
+    "tech_etf": "科技ETF",
+    "sector_etf": "行业ETF",
+    "nasdaq_cn": "跨境纳指ETF",
+    "nasdaq_us": "美股指数",
+    "macro": "大宗/宏观",
+}
+
 SYSTEM_PROMPTS = {
     "daily": (
         "你是个人长线投资助手。根据给定的持仓行情事实写中文日报点评。\n"
-        "结构固定为四段纯正文（不要标题符号）：\n"
-        "1) 今日涨跌分化（点名偏强/偏弱各2～4只，带具体涨跌幅）；\n"
-        "2) 近期急跌观察：重点看最近1日、3日、1周跌得最凶的标的（以给定急跌榜为准），"
-        "说明它们可否作为机动仓小额加仓的观察对象；一年高点回撤只作补充背景，不要当成唯一标准；\n"
-        "3) 均线观察（谁贴近MA30、谁明显偏离）；\n"
-        "4) 行动提醒：主仓仍按定投继续；只有机动仓才回应近期急跌/回撤；最后一行免责声明。\n"
-        "字数 300～450 字；只基于给定数据，不编造新闻、舆情、基本面；不要给出具体买入金额。"
+        "结构固定为五段纯正文（不要标题符号）：\n"
+        "1) 个股与美股涨跌分化（点名偏强/偏弱，带具体涨跌幅）；\n"
+        "2) 板块ETF强弱：重点比较科技类ETF（半导体/芯片/AI/科创/创业板/光伏/新能源车等）"
+        "相对沪深300及其他行业ETF的1日、3日、1周表现，点出领涨与领跌板块；\n"
+        "3) 近期急跌观察：以急跌榜为准，点名近1日/3日/1周跌得最凶的标的，"
+        "说明是否可作为机动仓小额加仓观察对象；一年高点回撤只作补充；\n"
+        "4) 均线观察（谁贴近MA30、谁明显偏离）；\n"
+        "5) 行动提醒：主仓仍按定投继续；只有机动仓才回应急跌/弱势板块；最后一行免责声明。\n"
+        "字数 350～500 字；只基于给定数据，不编造新闻、舆情、基本面；不要给出具体买入金额。"
     ),
     "weekly": (
         "你是个人长线投资助手。根据给定的持仓行情事实写中文周报点评。\n"
-        "结构固定为四段纯正文（不要标题符号）：\n"
-        "1) 本周强弱分化（带具体区间涨跌）；\n"
-        "2) 回撤与急跌：既看一年高点回撤，也点名本周跌幅较大的标的；\n"
-        "3) 均线位置（贴近/上方/下方）；\n"
-        "4) 纪律提醒：主仓定投、机动仓回应急跌/回撤；不要给买卖点位或仓位百分比；"
-        "最后一行免责声明。\n"
-        "字数 350～500 字；只基于给定数据，不编造新闻或社区舆论。"
+        "结构固定为五段纯正文（不要标题符号）：\n"
+        "1) 个股与美股本周强弱；\n"
+        "2) 板块ETF轮动：科技类相对其他行业及沪深300谁强谁弱；\n"
+        "3) 回撤与急跌：一年高点回撤 + 本周跌幅较大标的；\n"
+        "4) 均线位置；\n"
+        "5) 纪律提醒：主仓定投、机动仓回应急跌/弱势板块；不要给买卖点位；最后一行免责声明。\n"
+        "字数 400～500 字；只基于给定数据，不编造新闻或社区舆论。"
     ),
     "monthly": (
         "你是个人长线投资助手。根据给定的持仓行情事实写中文月报点评。\n"
-        "结构固定为四段纯正文（不要标题符号）：\n"
-        "1) 一月表现归纳（上涨/下跌阵营，带具体涨跌幅）；\n"
-        "2) 回撤深度（一年高点回撤最深的几只）；\n"
-        "3) 是否贴近均线（明确点出贴近MA30、明显偏离的标的）；\n"
-        "4) 下月观察重点（只谈观察，不预测涨跌）；最后一行免责声明。\n"
+        "结构固定为五段纯正文（不要标题符号）：\n"
+        "1) 一月个股/美股表现归纳；\n"
+        "2) 板块ETF一月表现：科技类 vs 医药/银行/白酒/军工/沪深300；\n"
+        "3) 回撤深度；\n"
+        "4) 是否贴近均线；\n"
+        "5) 下月观察重点（只谈观察，不预测涨跌）；最后一行免责声明。\n"
         "字数 400～500 字；只基于给定数据，不编造基本面或传闻。"
     ),
 }
@@ -127,15 +139,77 @@ def _stock_block_monthly(bundle: QuoteBundle) -> str:
     )
 
 
+def _block_for(kind: str, bundle: QuoteBundle) -> str:
+    if kind == "weekly":
+        return _stock_block_weekly(bundle)
+    if kind == "monthly":
+        return _stock_block_monthly(bundle)
+    return _stock_block_daily(bundle)
+
+
 def _market_data_text(kind: str, bundles: list[QuoteBundle]) -> str:
     header = f"共 {len(bundles)} 只｜{date.today().isoformat()}"
-    if kind == "weekly":
-        blocks = [_stock_block_weekly(b) for b in bundles]
-    elif kind == "monthly":
-        blocks = [_stock_block_monthly(b) for b in bundles]
-    else:
-        blocks = [_stock_block_daily(b) for b in bundles]
-    return header + "\n\n" + "\n\n".join(blocks)
+    order = ("tech_etf", "nasdaq_cn", "sector_etf", "stock", "nasdaq_us", "macro", "")
+    grouped: dict[str, list[QuoteBundle]] = {}
+    for b in bundles:
+        grouped.setdefault(b.theme or "", []).append(b)
+
+    sections: list[str] = [header]
+    for theme in order:
+        items = grouped.pop(theme, [])
+        if not items:
+            continue
+        label = THEME_LABELS.get(theme, theme or "其他")
+        sections.append(f"【{label}】")
+        sections.extend(_block_for(kind, b) for b in items)
+    for theme, items in grouped.items():
+        label = THEME_LABELS.get(theme, theme or "其他")
+        sections.append(f"【{label}】")
+        sections.extend(_block_for(kind, b) for b in items)
+    return "\n\n".join(sections)
+
+
+def _sector_board(bundles: list[QuoteBundle], kind: str) -> list[str]:
+    """Relative strength board for sector/tech ETFs."""
+    etfs = [b for b in bundles if b.theme in {"tech_etf", "sector_etf", "nasdaq_cn"}]
+    if not etfs:
+        return []
+    horizon = "1周" if kind != "daily" else "1日"
+    rows: list[tuple[str, str, float]] = []
+    for b in etfs:
+        if kind == "monthly":
+            val = change_by_calendar_days(b.hist, b.price, 30)
+            horizon = "1月"
+        elif kind == "weekly":
+            val = change_by_calendar_days(b.hist, b.price, 7)
+            horizon = "1周"
+        else:
+            val = change_by_trading_days(b.hist, b.price, 1)
+            horizon = "1日"
+        if val is None:
+            continue
+        label = THEME_LABELS.get(b.theme, b.theme)
+        rows.append((f"{b.name}({b.code})", label, val))
+    if not rows:
+        return ["板块ETF榜: 数据不足"]
+    rows.sort(key=lambda x: x[2], reverse=True)
+    top = rows[:5]
+    bottom = list(reversed(rows[-5:]))
+    lines = [f"板块ETF强弱榜（按{horizon}）:"]
+    lines.append(
+        "偏强: " + "；".join(f"{n}[{t}] {_fmt_pct(v)}" for n, t, v in top)
+    )
+    lines.append(
+        "偏弱: " + "；".join(f"{n}[{t}] {_fmt_pct(v)}" for n, t, v in bottom)
+    )
+    tech = [r for r in rows if "科技" in r[1] or r[1] == "跨境纳指ETF"]
+    if tech:
+        tech_sorted = sorted(tech, key=lambda x: x[2], reverse=True)
+        lines.append(
+            "科技相关排序: "
+            + "；".join(f"{n} {_fmt_pct(v)}" for n, _, v in tech_sorted)
+        )
+    return lines
 
 
 def _sharp_drop_board(bundles: list[QuoteBundle], top_n: int = 5) -> list[str]:
@@ -160,12 +234,15 @@ def _sharp_drop_board(bundles: list[QuoteBundle], top_n: int = 5) -> list[str]:
 def _facts_for_llm(kind: str, bundles: list[QuoteBundle]) -> str:
     today = date.today().isoformat()
     lines = [f"报告类型: {kind}", f"日期: {today}", f"标的数: {len(bundles)}", ""]
-    if kind == "daily":
+    lines.extend(_sector_board(bundles, kind))
+    lines.append("")
+    if kind in {"daily", "weekly"}:
         lines.extend(_sharp_drop_board(bundles))
         lines.append("")
     for b in bundles:
         ma_dev = (b.price - b.ma30) / b.ma30 * 100
         dd = (b.price / b.high_252 - 1.0) * 100 if b.high_252 > 0 else None
+        theme = THEME_LABELS.get(b.theme, b.theme or "其他")
 
         if kind == "weekly":
             chg = (
@@ -184,7 +261,7 @@ def _facts_for_llm(kind: str, bundles: list[QuoteBundle]) -> str:
                 f"1周={_fmt_pct(st['1周'])}"
             )
         lines.append(
-            f"- [{b.market}] {b.name}({b.code}) 价={b.price:.2f} "
+            f"- [{theme}/{b.market}] {b.name}({b.code}) 价={b.price:.2f} "
             f"MA30偏离={ma_dev:+.2f}% 一年高点回撤="
             f"{'—' if dd is None else f'{dd:+.1f}%'} | {chg}"
         )
@@ -229,18 +306,35 @@ def run_report(
             fail_markets += 1
             continue
         all_bundles.extend(bundles)
-        text = _market_data_text(kind, bundles)
-        if errors:
-            text += "\n\n拉取失败: " + ", ".join(errors)
 
         market_label = MARKET_TITLE.get(market, market.upper()).replace("日报", "")
-        title = f"{REPORT_TITLES[kind]} · {market_label}行情"
-        if dry_run:
-            log.info("[dry-run] %s\n%s", title, text[:1200])
+        # A股拆成「个股/跨境」与「板块ETF」两张卡，避免飞书正文过长截断。
+        groups: list[tuple[str, list[QuoteBundle]]]
+        if market == "cn":
+            core = [b for b in bundles if b.theme in {"stock", "nasdaq_cn", ""}]
+            etfs = [b for b in bundles if b.theme in {"tech_etf", "sector_etf"}]
+            groups = []
+            if core:
+                groups.append((f"{REPORT_TITLES[kind]} · {market_label}个股", core))
+            if etfs:
+                groups.append((f"{REPORT_TITLES[kind]} · 板块ETF", etfs))
+            if not groups:
+                groups = [(f"{REPORT_TITLES[kind]} · {market_label}行情", bundles)]
         else:
-            channel = send_alert(text, title=title)
-            log.info("已通过 %s 发送 %s（%d 只）", channel, title, len(bundles))
-        sent += 1
+            groups = [(f"{REPORT_TITLES[kind]} · {market_label}行情", bundles)]
+
+        for title, group in groups:
+            text = _market_data_text(kind, group)
+            if errors and group is bundles:
+                text += "\n\n拉取失败: " + ", ".join(errors)
+            elif errors and title.endswith("个股"):
+                text += "\n\n拉取失败: " + ", ".join(errors)
+            if dry_run:
+                log.info("[dry-run] %s\n%s", title, text[:1200])
+            else:
+                channel = send_alert(text, title=title)
+                log.info("已通过 %s 发送 %s（%d 只）", channel, title, len(group))
+            sent += 1
 
     if all_bundles:
         comment = _llm_comment(kind, all_bundles)

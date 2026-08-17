@@ -305,6 +305,7 @@ class QuoteBundle:
     high_252: float
     as_of: str
     hist: pd.DataFrame
+    theme: str = ""
 
 
 def fetch_history(code: str, market: str = "cn") -> pd.DataFrame:

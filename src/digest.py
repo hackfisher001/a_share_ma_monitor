@@ -49,13 +49,15 @@ def collect_bundles(stocks: list[dict], market_filter: str | None = None) -> tup
             continue
         try:
             b = build_bundle(code, name=name, market=market)
+            b.theme = str(item.get("theme") or "").strip().lower()
             bundles.append(b)
             log.info(
-                "[digest/%s] %s(%s) %.2f",
+                "[digest/%s] %s(%s) %.2f theme=%s",
                 market.upper(),
                 b.name,
                 b.code,
                 b.price,
+                b.theme or "-",
             )
         except Exception as exc:
             key = f"{market}:{code}"
