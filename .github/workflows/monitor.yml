@@ -1,0 +1,51 @@
+name: A-share MA30 Monitor
+
+on:
+  schedule:
+    # 工作日交易时段（UTC）：北京时间 09:30–15:00 ≈ 01:30–07:00 UTC
+    # 约每 30 分钟一次
+    - cron: "0,30 1-7 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: ma-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore alert state
+        uses: actions/cache@v4
+        with:
+          path: data/alert_state.json
+          key: alert-state-${{ github.run_id }}
+          restore-keys: |
+            alert-state-
+
+      - name: Run monitor
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+          DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
+          STATE_FILE: data/alert_state.json
+        run: python -m src.main
+
+      - name: Persist alert state path
+        if: always()
+        run: |
+          mkdir -p data
+          test -f data/alert_state.json || echo '{"date":"","alerted":[]}' > data/alert_state.json
