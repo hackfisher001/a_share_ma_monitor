@@ -15,6 +15,12 @@ source .venv/bin/activate
 pip install -U pip -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
 pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
 
+# 中文字体：行情表 PNG 渲染需要
+if command -v apt-get >/dev/null 2>&1; then
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fonts-wqy-microhei fonts-wqy-zenhei >/dev/null || true
+fi
+
 chmod +x scripts/run_once.sh
 
 if [[ ! -f .env ]]; then

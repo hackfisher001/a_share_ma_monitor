@@ -271,7 +271,7 @@ def _build_tables(kind: str, bundles: list[QuoteBundle]) -> list[dict]:
 def _market_header(kind: str, bundles: list[QuoteBundle]) -> str:
     return (
         f"**共 {len(bundles)} 只**｜{date.today().isoformat()}\n"
-        f"请直接对比涨跌幅列；名称已 **加粗**。"
+        f"行情以图片表格展示（可点开预览放大）；未配飞书应用时改为手机竖排。"
     )
 
 

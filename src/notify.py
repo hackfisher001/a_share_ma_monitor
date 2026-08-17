@@ -87,22 +87,74 @@ def _table_element(spec: TableSpec) -> dict[str, Any]:
     }
 
 
-def _markdown_fallback_table(spec: TableSpec) -> str:
+def _strip_md(text: str) -> str:
+    t = str(text or "")
+    if t.startswith("**") and t.endswith("**") and len(t) > 4:
+        return t[2:-2]
+    return t.replace("\n", " ").strip()
+
+
+def _mobile_stack_table(spec: TableSpec) -> str:
+    """Phone-friendly vertical blocks when image upload is unavailable."""
     cols = spec["columns"]
-    headers = [c.get("display_name") or c["name"] for c in cols]
     keys = [c["name"] for c in cols]
-    # Keep cells single-line; Feishu lark_md does not render pipe tables.
-    lines = [
-        f"**{spec['title']}**" if spec.get("title") else "",
-        " · ".join(f"**{h}**" for h in headers),
-    ]
+    labels = {c["name"]: (c.get("display_name") or c["name"]) for c in cols}
+    lines: list[str] = []
+    if spec.get("title"):
+        lines.append(f"**{spec['title']}**")
     for row in spec.get("rows") or []:
-        cells = []
+        name = _strip_md(str(row.get("name", "")))
+        code = _strip_md(str(row.get("code", "")))
+        head = f"**{name}**" if name else "**—"
+        if code:
+            head += f" `{code}`"
+        lines.append(head)
+        parts: list[str] = []
         for k in keys:
-            val = str(row.get(k, "—")).replace("\n", " ")
-            cells.append(val)
-        lines.append(" · ".join(cells))
-    return "\n".join(x for x in lines if x)
+            if k in {"name", "code"}:
+                continue
+            val = _strip_md(str(row.get(k, "—")))
+            parts.append(f"{labels[k]} {val}")
+        if parts:
+            # Two short lines keep phones readable.
+            mid = (len(parts) + 1) // 2
+            lines.append(" · ".join(parts[:mid]))
+            if parts[mid:]:
+                lines.append(" · ".join(parts[mid:]))
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def _markdown_fallback_table(spec: TableSpec) -> str:
+    return _mobile_stack_table(spec)
+
+
+def _img_element(img_key: str, alt: str = "行情表") -> dict[str, Any]:
+    return {
+        "tag": "img",
+        "img_key": img_key,
+        "alt": {"tag": "plain_text", "content": alt[:100]},
+        "mode": "fit_horizontal",
+        "preview": True,
+        "transparent": False,
+        "corner_radius": "4px",
+    }
+
+
+def _try_upload_table_images(tables: list[TableSpec]) -> list[str]:
+    from src.feishu_media import feishu_app_configured, upload_png_list
+    from src.table_image import render_tables_png
+
+    if not tables or not feishu_app_configured():
+        return []
+    try:
+        pngs = render_tables_png(tables)
+        keys = upload_png_list(pngs)
+        log.info("已上传 %d 张行情表图片到飞书", len(keys))
+        return keys
+    except Exception as exc:
+        log.warning("行情表转图片失败，改用手机竖排文本: %s", exc)
+        return []
 
 
 def send_feishu(
@@ -112,12 +164,14 @@ def send_feishu(
     webhook_url: str | None = None,
     tables: list[TableSpec] | None = None,
     markdown: str | None = None,
+    image_keys: list[str] | None = None,
+    prefer_images: bool = True,
 ) -> None:
     """
     Send Feishu interactive card.
 
-    Prefer Card JSON 2.0 with native tables; fall back to markdown/text.
-    Schema 2.0 does not support the legacy `note` tag — use markdown disclaimer.
+    Preferred path for reports: render tables → upload PNG → img in Card 2.0
+    (needs FEISHU_APP_ID/SECRET). Falls back to mobile stacked markdown.
     """
     url = webhook_url or os.getenv("FEISHU_WEBHOOK_URL", "").strip()
     if not url:
@@ -128,13 +182,26 @@ def send_feishu(
     if len(body_md) > 4500:
         body_md = body_md[:4400] + "\n\n…（内容过长已截断）"
 
+    tables = tables or []
+    keys = list(image_keys or [])
+    if prefer_images and not keys and tables:
+        keys = _try_upload_table_images(tables)
+
     elements: list[dict[str, Any]] = []
     if body_md.strip():
         elements.append({"tag": "markdown", "content": body_md})
-    for spec in tables or []:
-        if spec.get("title"):
-            elements.append({"tag": "markdown", "content": f"**{spec['title']}**"})
-        elements.append(_table_element(spec))
+
+    if keys:
+        for i, key in enumerate(keys):
+            alt = "行情表"
+            if i < len(tables) and tables[i].get("title"):
+                alt = str(tables[i]["title"])
+            elements.append(_img_element(key, alt=alt))
+    elif tables:
+        # Avoid native Feishu tables — cramped on mobile, truncated on desktop.
+        stack = "\n\n".join(_mobile_stack_table(t) for t in tables)
+        elements.append({"tag": "markdown", "content": stack})
+
     elements.append(
         {"tag": "markdown", "content": f"<font color='grey'>{_DISCLAIMER}</font>"}
     )
@@ -151,12 +218,14 @@ def send_feishu(
         },
     }
 
-    # Legacy card (1.0): markdown + flattened tables (no pipe syntax).
     legacy_parts = []
     if body_md.strip():
         legacy_parts.append(body_md)
-    for spec in tables or []:
-        legacy_parts.append(_markdown_fallback_table(spec))
+    if not keys:
+        for spec in tables:
+            legacy_parts.append(_mobile_stack_table(spec))
+    elif tables:
+        legacy_parts.append("（本条含行情表图片，请在飞书客户端查看）")
     legacy_parts.append(_DISCLAIMER)
     legacy_body = "\n\n".join(legacy_parts) or title
     if len(legacy_body) > 4500:
@@ -217,6 +286,8 @@ def send_alert(
     title: str = "加仓提醒 · MA30",
     tables: list[TableSpec] | None = None,
     markdown: str | None = None,
+    image_keys: list[str] | None = None,
+    prefer_images: bool = True,
 ) -> str:
     """
     Send via first configured channel.
@@ -224,13 +295,19 @@ def send_alert(
     Returns channel name used.
     """
     if os.getenv("FEISHU_WEBHOOK_URL", "").strip():
-        send_feishu(text, title=title, tables=tables, markdown=markdown)
+        send_feishu(
+            text,
+            title=title,
+            tables=tables,
+            markdown=markdown,
+            image_keys=image_keys,
+            prefer_images=prefer_images,
+        )
         return "feishu"
-    # Non-Feishu channels: flatten tables into text.
     flat = markdown or text
     if tables:
         flat = (flat + "\n\n" if flat else "") + "\n\n".join(
-            _markdown_fallback_table(t) for t in tables
+            _mobile_stack_table(t) for t in tables
         )
     if os.getenv("WECOM_WEBHOOK_URL", "").strip():
         send_wecom(flat)
@@ -244,23 +321,26 @@ def send_alert(
 
 
 def send_test_ping() -> str:
-    """Send a one-off connectivity check to the configured channel."""
+    """Send a one-off connectivity / style check."""
     return send_alert(
         markdown=(
             "**连通测试成功**\n"
-            "若看到本卡片，说明飞书 Webhook 可用，并支持 **加粗** 与表格样式。"
+            "若已配置 `FEISHU_APP_ID/SECRET`，下方应为 **图片表格**；"
+            "否则为手机竖排文本。"
         ),
         title="连通测试",
         tables=[
             {
                 "title": "样式预览",
                 "columns": [
-                    {"name": "item", "display_name": "项目", "width": "100px"},
-                    {"name": "value", "display_name": "效果", "width": "160px"},
+                    {"name": "name", "display_name": "名称", "width": "110px"},
+                    {"name": "code", "display_name": "代码", "width": "80px"},
+                    {"name": "d1", "display_name": "1日", "width": "80px"},
+                    {"name": "dd", "display_name": "一年回撤", "width": "90px"},
                 ],
                 "rows": [
-                    {"item": "**加粗**", "value": "名称列可加粗"},
-                    {"item": "表格", "value": "行情将按表格展示"},
+                    {"name": "**招商银行**", "code": "600036", "d1": "-0.68%", "dd": "-11.02%"},
+                    {"name": "**长电科技**", "code": "600584", "d1": "-1.23%", "dd": "-8.50%"},
                 ],
             }
         ],
