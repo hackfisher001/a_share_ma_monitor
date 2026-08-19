@@ -47,11 +47,6 @@ stocks:
     name: "中国神华"
     market: cn
     theme: stock
-  # 注意：300024 公开行情为「机器人」股票，不是纳指ETF
-  - code: "300024"
-    name: "机器人"
-    market: cn
-    theme: stock
 
   # —— 境内纳指相关 ETF ——
   - code: "159509"
