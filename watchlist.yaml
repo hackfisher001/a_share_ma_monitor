@@ -97,22 +97,6 @@ stocks:
     name: "沪深300ETF"
     market: cn
     theme: sector_etf
-  - code: "512010"
-    name: "医药ETF"
-    market: cn
-    theme: sector_etf
-  - code: "512800"
-    name: "银行ETF"
-    market: cn
-    theme: sector_etf
-  - code: "512690"
-    name: "酒ETF"
-    market: cn
-    theme: sector_etf
-  - code: "512660"
-    name: "军工ETF"
-    market: cn
-    theme: sector_etf
 
   # —— 贵金属 ETF ——
   - code: "518880"
