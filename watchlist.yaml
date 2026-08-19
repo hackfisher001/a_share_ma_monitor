@@ -11,6 +11,12 @@ drawdown_markets:
   - cn
   - us
 
+# 近期异常回撤：相对该标的近一年自身波动的最差 10%（3日跌幅或距20日高点）
+# 触发后冷却 recent_pullback_cooldown_days 天，避免同一段下跌反复刷屏。
+recent_pullback: true
+recent_pullback_percentile: 10
+recent_pullback_cooldown_days: 7
+
 stocks:
   # —— A股个股 ——
   - code: "600036"

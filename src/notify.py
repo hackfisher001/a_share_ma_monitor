@@ -113,7 +113,11 @@ def _mobile_stack_table(spec: TableSpec) -> str:
         for k in keys:
             if k in {"name", "code"}:
                 continue
-            val = _strip_md(str(row.get(k, "—")))
+            raw = row.get(k, "—")
+            if isinstance(raw, dict) and "values" in raw:
+                val = "见图片"
+            else:
+                val = _strip_md(str(raw))
             parts.append(f"{labels[k]} {val}")
         if parts:
             # Two short lines keep phones readable.

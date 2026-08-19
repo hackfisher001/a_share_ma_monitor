@@ -17,10 +17,21 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.fetch_quotes import build_snapshot
+from src.fetch_quotes import QuoteBundle, build_bundle
 from src.notify import send_alert, send_test_ping
+from src.price_context import (
+    RECENT_PERCENTILE,
+    build_price_context,
+    compose_alert_markdown,
+    detect_recent_pullback,
+)
 from src.reports import run_report
-from src.signals import DEFAULT_DRAWDOWN_LEVELS, crossed_drawdown_levels, is_touching_ma30
+from src.signals import (
+    DEFAULT_DRAWDOWN_LEVELS,
+    QuoteSnapshot,
+    crossed_drawdown_levels,
+    is_touching_ma30,
+)
 from src.state import AlertState
 
 logging.basicConfig(
@@ -37,6 +48,9 @@ class ScanConfig:
     drawdown_markets: tuple[str, ...]
     # When drawdown recovers above -reset_pct, clear fired bands for a new episode.
     drawdown_reset_pct: float
+    recent_pullback: bool
+    recent_pullback_percentile: float
+    recent_pullback_cooldown_days: int
 
 
 def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
@@ -55,11 +69,65 @@ def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
         drawdown_levels=levels,
         drawdown_markets=tuple(str(m).strip().lower() for m in markets),
         drawdown_reset_pct=abs(float(data.get("drawdown_reset_pct", 3))),
+        recent_pullback=bool(data.get("recent_pullback", True)),
+        recent_pullback_percentile=float(
+            data.get("recent_pullback_percentile", RECENT_PERCENTILE)
+        ),
+        recent_pullback_cooldown_days=int(data.get("recent_pullback_cooldown_days", 7)),
     )
     stocks = data.get("stocks") or []
     if not stocks:
         raise ValueError(f"watchlist 为空: {path}")
     return config, stocks
+
+
+def _snapshot_from_bundle(bundle: QuoteBundle) -> QuoteSnapshot:
+    return QuoteSnapshot(
+        code=bundle.code,
+        name=bundle.name,
+        price=bundle.price,
+        ma30=bundle.ma30,
+        as_of=bundle.as_of,
+        history_rows=len(bundle.hist),
+        high_252=bundle.high_252,
+    )
+
+
+def _sparkline_keys(title: str, subtitle: str, spark: dict) -> list[str]:
+    if not spark.get("values"):
+        return []
+    try:
+        from src.feishu_media import feishu_app_configured, upload_image_png
+        from src.table_image import render_sparkline_card_png
+
+        if not feishu_app_configured():
+            return []
+        png = render_sparkline_card_png(title=title, subtitle=subtitle, spark=spark)
+        return [upload_image_png(png)]
+    except Exception as exc:
+        log.warning("走势图上传失败: %s", exc)
+        return []
+
+
+def _dispatch_alert(
+    *,
+    title: str,
+    headline: str,
+    ctx,
+    extra: str = "",
+    dry_run: bool,
+) -> str:
+    markdown = compose_alert_markdown(headline, ctx, extra)
+    if dry_run:
+        log.info("[dry-run] %s 将发送:\n%s", title, markdown)
+        return "dry-run"
+    keys = _sparkline_keys(title, ctx.stage, ctx.spark)
+    return send_alert(
+        markdown=markdown,
+        title=title,
+        image_keys=keys or None,
+        prefer_images=False,
+    )
 
 
 def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False) -> int:
@@ -81,12 +149,14 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
             continue
         state_key = f"{market}:{code}"
         try:
-            snap = build_snapshot(code, name=name, market=market)
+            bundle = build_bundle(code, name=name, market=market)
+            snap = _snapshot_from_bundle(bundle)
+            ctx = build_price_context(bundle.hist, bundle.price, bundle.ma30)
             drawdown = (
                 (snap.price / snap.high_252 - 1) * 100 if snap.high_252 > 0 else 0.0
             )
             log.info(
-                "[%s] %s(%s) price=%.2f ma30=%.2f dev=%+.2f%% 距一年高点=%+.2f%%",
+                "[%s] %s(%s) price=%.2f ma30=%.2f dev=%+.2f%% 距一年高点=%+.2f%% 阶段=%s",
                 market.upper(),
                 snap.name,
                 snap.code,
@@ -94,22 +164,26 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 snap.ma30,
                 (snap.price - snap.ma30) / snap.ma30 * 100,
                 drawdown,
+                ctx.stage,
             )
 
             ma_signal = is_touching_ma30(snap, config.touch_pct)
             if ma_signal is not None:
                 if force or not state.already_alerted(state_key):
-                    if dry_run:
-                        log.info("[dry-run] MA30 将发送:\n%s", ma_signal.message)
-                    else:
-                        channel = send_alert(ma_signal.message, title="加仓提醒 · MA30")
+                    channel = _dispatch_alert(
+                        title="加仓提醒 · MA30",
+                        headline=ma_signal.message,
+                        ctx=ctx,
+                        dry_run=dry_run,
+                    )
+                    if not dry_run:
                         log.info("已通过 %s 发送 MA30 提醒: %s", channel, state_key)
                         state.mark_alerted(state_key)
                     alerts += 1
                 else:
                     log.info("今日已提醒过 %s，跳过", state_key)
 
-            # Multi-level drawdown observe alerts (each band once per episode).
+            # Multi-level 1-year drawdown observe alerts (each band once per episode).
             if market in config.drawdown_markets:
                 if drawdown > -config.drawdown_reset_pct:
                     state.clear_drawdown_levels(state_key)
@@ -124,10 +198,13 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                         if level >= 30
                         else f"回撤观察 · {level:g}%"
                     )
-                    if dry_run:
-                        log.info("[dry-run] %s 将发送:\n%s", title, dd_signal.message)
-                    else:
-                        channel = send_alert(dd_signal.message, title=title)
+                    channel = _dispatch_alert(
+                        title=title,
+                        headline=dd_signal.message,
+                        ctx=ctx,
+                        dry_run=dry_run,
+                    )
+                    if not dry_run:
                         log.info(
                             "已通过 %s 发送回撤提醒: %s -%g%%",
                             channel,
@@ -136,6 +213,32 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                         )
                         state.mark_drawdown_level(state_key, level)
                     alerts += 1
+
+            if config.recent_pullback:
+                hit, reason = detect_recent_pullback(
+                    bundle.hist,
+                    bundle.price,
+                    percentile=config.recent_pullback_percentile,
+                )
+                cooldown_key = f"recent:{state_key}"
+                if hit and (force or not state.in_cooldown(cooldown_key, config.recent_pullback_cooldown_days)):
+                    headline = (
+                        f"**{snap.name}({snap.code})** 出现近期异常回撤\n"
+                        f"现价 **{snap.price:.2f}**　日线截至 {snap.as_of}"
+                    )
+                    channel = _dispatch_alert(
+                        title="近期异常回撤",
+                        headline=headline,
+                        ctx=ctx,
+                        extra=f"**触发：** {reason}",
+                        dry_run=dry_run,
+                    )
+                    if not dry_run:
+                        log.info("已通过 %s 发送近期回撤提醒: %s", channel, state_key)
+                        state.mark_cooldown(cooldown_key)
+                    alerts += 1
+                elif hit:
+                    log.info("近期回撤仍在冷却期，跳过 %s", state_key)
         except Exception as exc:
             errors += 1
             log.exception("处理 %s 失败: %s", state_key, exc)

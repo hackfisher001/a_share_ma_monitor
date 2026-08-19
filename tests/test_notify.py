@@ -24,6 +24,34 @@ def test_render_table_png_smoke():
     assert len(png) > 500
 
 
+def test_render_sparkline_table_png():
+    png = table_image.render_table_png(
+        {
+            "title": "走势",
+            "columns": [
+                {"name": "name", "display_name": "名称", "width": "120px"},
+                {
+                    "name": "spark",
+                    "display_name": "近一年走势",
+                    "width": "240px",
+                    "data_type": "sparkline",
+                },
+            ],
+            "rows": [
+                {
+                    "name": "**黄金**",
+                    "spark": {
+                        "values": [100, 130, 160, 150, 120, 125, 138],
+                        "years": [2025, 2025, 2025, 2025, 2026, 2026, 2026],
+                    },
+                }
+            ],
+        }
+    )
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert len(png) > 1000
+
+
 def test_mobile_stack_table():
     text = notify._mobile_stack_table(
         {
@@ -40,6 +68,20 @@ def test_mobile_stack_table():
     assert "**芯片**" in text
     assert "`512480`" in text
     assert "1日 -1.2%" in text
+
+
+def test_mobile_stack_hides_raw_sparkline_data():
+    text = notify._mobile_stack_table(
+        {
+            "columns": [
+                {"name": "name", "display_name": "名称"},
+                {"name": "spark", "display_name": "走势", "data_type": "sparkline"},
+            ],
+            "rows": [{"name": "**黄金**", "spark": {"values": [1, 2, 3]}}],
+        }
+    )
+    assert "走势 见图片" in text
+    assert "[1, 2, 3]" not in text
 
 
 def test_send_alert_requires_feishu(monkeypatch):
