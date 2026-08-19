@@ -23,6 +23,22 @@ stocks:
     name: "招商银行"
     market: cn
     theme: stock
+  - code: "601398"
+    name: "工商银行"
+    market: cn
+    theme: stock
+  - code: "601939"
+    name: "建设银行"
+    market: cn
+    theme: stock
+  - code: "601288"
+    name: "农业银行"
+    market: cn
+    theme: stock
+  - code: "601988"
+    name: "中国银行"
+    market: cn
+    theme: stock
   - code: "600900"
     name: "长江电力"
     market: cn
