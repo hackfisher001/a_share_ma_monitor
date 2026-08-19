@@ -23,8 +23,8 @@ stocks:
     name: "招商银行"
     market: cn
     theme: stock
-  - code: "600584"
-    name: "长电科技"
+  - code: "600900"
+    name: "长江电力"
     market: cn
     theme: stock
   - code: "601088"
