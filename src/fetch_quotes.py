@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import akshare as ak
 import pandas as pd
@@ -236,7 +237,32 @@ def fetch_daily_history_us(code: str, lookback_days: int = 420) -> pd.DataFrame:
     raise RuntimeError(f"{code} 美股日线拉取失败: " + " | ".join(errors))
 
 
+@dataclass
+class SpotQuote:
+    price: float
+    name: str = ""
+    prev_close: float | None = None
+    as_of: date | None = None
+
+
+def _parse_sina_date(raw: str) -> date | None:
+    raw = (raw or "").strip()
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def lookup_spot_cn(code: str) -> tuple[float | None, str]:
+    spot = lookup_spot_cn_detail(code)
+    if spot is None:
+        return None, ""
+    return spot.price, spot.name
+
+
+def lookup_spot_cn_detail(code: str) -> SpotQuote | None:
     code = _normalize_cn(code)
     symbol = to_sina_symbol(code)
     url = f"https://hq.sinajs.cn/list={symbol}"
@@ -249,18 +275,20 @@ def lookup_spot_cn(code: str) -> tuple[float | None, str]:
         resp.raise_for_status()
         text = resp.content.decode("gbk", errors="ignore")
         if '=""' in text or '="' not in text:
-            return None, ""
+            return None
         payload = text.split('="', 1)[1].rstrip('";\n')
         parts = payload.split(",")
         if len(parts) < 4:
-            return None, ""
+            return None
         name = parts[0].strip()
         price = float(parts[3])
         if price <= 0:
-            return None, name
-        return price, name
+            return None
+        prev_close = float(parts[2]) if len(parts) > 2 and parts[2] else None
+        as_of = _parse_sina_date(parts[30]) if len(parts) > 30 else None
+        return SpotQuote(price=price, name=name, prev_close=prev_close, as_of=as_of)
     except Exception:
-        return None, ""
+        return None
 
 
 def lookup_spot_hk(code: str) -> tuple[float | None, str]:
@@ -317,30 +345,69 @@ def fetch_history(code: str, market: str = "cn") -> pd.DataFrame:
     return fetch_daily_history_cn(code)
 
 
+def _session_date(market: str) -> date:
+    if market == "us":
+        return datetime.now(ZoneInfo("America/New_York")).date()
+    return datetime.now(ZoneInfo("Asia/Shanghai")).date()
+
+
+def attach_live_close(
+    hist: pd.DataFrame,
+    price: float,
+    session: date,
+) -> pd.DataFrame:
+    """Put the live price on the current session bar so 1-day change uses 昨收."""
+    if hist is None or hist.empty or price <= 0:
+        return hist
+    out = hist.copy()
+    last = pd.Timestamp(out.iloc[-1]["date"]).normalize()
+    current = pd.Timestamp(session).normalize()
+    if last >= current:
+        out.iat[-1, out.columns.get_loc("close")] = float(price)
+        return out.reset_index(drop=True)
+    row = {col: out.iloc[-1][col] for col in out.columns}
+    row["date"] = current
+    row["close"] = float(price)
+    return pd.concat([out, pd.DataFrame([row])], ignore_index=True)
+
+
 def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
     market = (market or "cn").strip().lower()
+    spot: SpotQuote | None = None
     if market == "hk":
         display = _normalize_hk(code)
         hist = fetch_daily_history_hk(display)
         spot_price, spot_name = lookup_spot_hk(display)
+        if spot_price is not None:
+            spot = SpotQuote(price=spot_price, name=spot_name, as_of=_session_date("hk"))
     elif market == "us":
         display = _normalize_us(code)
         hist = fetch_daily_history_us(display)
         spot_price, spot_name = lookup_spot_us(display)
+        if spot_price is not None:
+            spot = SpotQuote(price=spot_price, name=spot_name, as_of=_session_date("us"))
     else:
         display = _normalize_cn(code)
         hist = fetch_daily_history_cn(display)
-        spot_price, spot_name = lookup_spot_cn(display)
+        spot = lookup_spot_cn_detail(display)
+        spot_name = spot.name if spot else ""
 
     if len(hist) < 30:
         raise ValueError(f"{display} 日线不足 30 根（当前 {len(hist)}）")
 
+    if spot is not None:
+        session = spot.as_of or _session_date(market)
+        hist = attach_live_close(hist, spot.price, session)
+        price = float(spot.price)
+        display_name = name or spot.name or display
+    else:
+        price = float(hist.iloc[-1]["close"])
+        display_name = name or display
+
     ma30 = float(hist["close"].tail(30).mean())
-    price = float(spot_price) if spot_price is not None else float(hist.iloc[-1]["close"])
     # Close-based high, matching the rolling high used in the backtest.
     high_252 = float(max(hist["close"].tail(HIGH_WINDOW).max(), price))
-    display_name = name or spot_name or display
-    as_of = hist.iloc[-1]["date"].strftime("%Y-%m-%d")
+    as_of = pd.Timestamp(hist.iloc[-1]["date"]).strftime("%Y-%m-%d")
     return QuoteBundle(
         code=display,
         name=display_name,
