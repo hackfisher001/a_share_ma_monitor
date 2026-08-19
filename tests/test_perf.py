@@ -41,6 +41,24 @@ def test_attach_live_close_makes_intraday_change_use_prev_close():
     assert abs(pct - ((15.25 / 16.66) - 1) * 100) < 1e-9
 
 
+def test_parse_tencent_cn_quote_uses_official_prev_close():
+    from datetime import date
+
+    from src.fetch_quotes import parse_tencent_cn_quote
+
+    raw = (
+        'v_sz300024="51~机器人~300024~15.25~16.66~16.20~673829~277569~396260~15.24~732~'
+        "15.23~83~15.22~182~15.21~240~15.20~712~15.25~2247~15.26~423~15.27~232~15.28~"
+        '313~15.29~203~~20260819161442~-1.41~-8.46~16.21~15.12~"'
+    )
+    spot = parse_tencent_cn_quote(raw)
+    assert spot is not None
+    assert spot.name == "机器人"
+    assert spot.price == 15.25
+    assert spot.prev_close == 16.66
+    assert spot.as_of == date(2026, 8, 19)
+
+
 def test_attach_live_close_updates_same_session_bar():
     from datetime import date
 

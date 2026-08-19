@@ -262,33 +262,124 @@ def lookup_spot_cn(code: str) -> tuple[float | None, str]:
     return spot.price, spot.name
 
 
+def parse_tencent_cn_quote(text: str) -> SpotQuote | None:
+    """Parse Tencent qt.gtimg.cn payload: name, price, prev close, session date."""
+    if '="' not in text:
+        return None
+    payload = text.split('="', 1)[1].rstrip('";\n')
+    if not payload or payload == "1":
+        return None
+    parts = payload.split("~")
+    if len(parts) < 5:
+        return None
+    name = parts[1].strip()
+    try:
+        price = float(parts[3])
+    except (TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    prev_close = None
+    try:
+        prev_close = float(parts[4]) if parts[4] else None
+    except (TypeError, ValueError):
+        prev_close = None
+    as_of = None
+    if len(parts) > 30 and parts[30]:
+        raw = parts[30].strip()[:8]
+        try:
+            as_of = datetime.strptime(raw, "%Y%m%d").date()
+        except ValueError:
+            as_of = None
+    return SpotQuote(price=price, name=name, prev_close=prev_close, as_of=as_of)
+
+
+def parse_sina_cn_quote(text: str) -> SpotQuote | None:
+    if '=""' in text or '="' not in text:
+        return None
+    payload = text.split('="', 1)[1].rstrip('";\n')
+    parts = payload.split(",")
+    if len(parts) < 4:
+        return None
+    name = parts[0].strip()
+    try:
+        price = float(parts[3])
+    except (TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    prev_close = None
+    try:
+        prev_close = float(parts[2]) if parts[2] else None
+    except (TypeError, ValueError):
+        prev_close = None
+    as_of = _parse_sina_date(parts[30]) if len(parts) > 30 else None
+    return SpotQuote(price=price, name=name, prev_close=prev_close, as_of=as_of)
+
+
+def parse_eastmoney_cn_quote(payload: dict) -> SpotQuote | None:
+    data = (payload or {}).get("data") or {}
+    raw_price = data.get("f43")
+    if raw_price in (None, "-", ""):
+        return None
+    try:
+        price = float(raw_price) / 100.0
+    except (TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    name = str(data.get("f58") or "").strip()
+    prev_close = None
+    try:
+        if data.get("f60") not in (None, "-", ""):
+            prev_close = float(data["f60"]) / 100.0
+    except (TypeError, ValueError):
+        prev_close = None
+    return SpotQuote(price=price, name=name, prev_close=prev_close)
+
+
 def lookup_spot_cn_detail(code: str) -> SpotQuote | None:
+    """Aliyun often gets 403 from Sina hq; Tencent/Eastmoney stay reachable."""
     code = _normalize_cn(code)
     symbol = to_sina_symbol(code)
-    url = f"https://hq.sinajs.cn/list={symbol}"
-    try:
+    headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn"}
+
+    def _from_tencent() -> SpotQuote | None:
         resp = requests.get(
-            url,
-            headers={"Referer": "https://finance.sina.com.cn"},
-            timeout=10,
+            f"https://qt.gtimg.cn/q={symbol}",
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com"},
+            timeout=8,
         )
         resp.raise_for_status()
-        text = resp.content.decode("gbk", errors="ignore")
-        if '=""' in text or '="' not in text:
-            return None
-        payload = text.split('="', 1)[1].rstrip('";\n')
-        parts = payload.split(",")
-        if len(parts) < 4:
-            return None
-        name = parts[0].strip()
-        price = float(parts[3])
-        if price <= 0:
-            return None
-        prev_close = float(parts[2]) if len(parts) > 2 and parts[2] else None
-        as_of = _parse_sina_date(parts[30]) if len(parts) > 30 else None
-        return SpotQuote(price=price, name=name, prev_close=prev_close, as_of=as_of)
-    except Exception:
-        return None
+        return parse_tencent_cn_quote(resp.content.decode("gbk", errors="ignore"))
+
+    def _from_eastmoney() -> SpotQuote | None:
+        market_id = "1" if symbol.startswith("sh") else "0"
+        url = (
+            "https://push2.eastmoney.com/api/qt/stock/get"
+            f"?secid={market_id}.{code}&fields=f43,f57,f58,f60"
+        )
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        resp.raise_for_status()
+        return parse_eastmoney_cn_quote(resp.json())
+
+    def _from_sina() -> SpotQuote | None:
+        resp = requests.get(
+            f"https://hq.sinajs.cn/list={symbol}",
+            headers=headers,
+            timeout=8,
+        )
+        resp.raise_for_status()
+        return parse_sina_cn_quote(resp.content.decode("gbk", errors="ignore"))
+
+    for loader in (_from_tencent, _from_eastmoney, _from_sina):
+        try:
+            spot = loader()
+        except Exception:
+            continue
+        if spot is not None:
+            return spot
+    return None
 
 
 def lookup_spot_hk(code: str) -> tuple[float | None, str]:
