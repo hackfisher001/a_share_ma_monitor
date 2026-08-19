@@ -47,6 +47,10 @@ stocks:
     name: "中国神华"
     market: cn
     theme: stock
+  - code: "601899"
+    name: "紫金矿业"
+    market: cn
+    theme: stock
 
   # —— 境内纳指相关 ETF ——
   - code: "159509"
