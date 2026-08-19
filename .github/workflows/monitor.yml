@@ -1,10 +1,8 @@
 name: A-share MA30 Monitor
 
+# 正式监控在阿里云 crontab 上跑。这里不再定时执行，
+# 避免 GitHub Actions 缺 FEISHU_WEBHOOK_URL 反复失败刷邮件。
 on:
-  schedule:
-    # 工作日交易时段（UTC）：北京时间 09:30–15:00 ≈ 01:30–07:00 UTC
-    # 约每 30 分钟一次
-    - cron: "0,30 1-7 * * 1-5"
   workflow_dispatch:
 
 concurrency:
