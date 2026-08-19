@@ -103,6 +103,12 @@ stocks:
     market: cn
     theme: sector_etf
 
+  # —— 贵金属 ETF ——
+  - code: "518880"
+    name: "黄金ETF华安"
+    market: cn
+    theme: macro
+
   # —— 美股 ——
   - code: "TSLA"
     name: "特斯拉"
