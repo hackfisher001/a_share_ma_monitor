@@ -28,12 +28,17 @@ REPORT_TITLES = {
 
 THEME_LABELS = {
     "stock": "个股",
+    "etf": "ETF",
     "tech_etf": "科技ETF",
     "sector_etf": "行业ETF",
     "nasdaq_cn": "跨境纳指ETF",
     "nasdaq_us": "美股指数",
     "macro": "大宗/宏观",
 }
+
+CN_STOCK_THEME = "stock"
+CN_ETF_TITLE = "A股ETF"
+CN_STOCK_TITLE = "A股个股"
 
 _SCAN_FORMAT = (
     "\n\n输出必须严格采用下面五块，块标题单独一行，不得增加其他板块：\n"
@@ -264,39 +269,72 @@ def _row_for(kind: str, bundle: QuoteBundle) -> dict[str, Any]:
     return _row_daily(bundle)
 
 
-def _build_tables(kind: str, bundles: list[QuoteBundle]) -> list[dict]:
-    """One image table per theme, ranked by the report's main recent horizon."""
+def _split_cn_bundles(bundles: list[QuoteBundle]) -> tuple[list[QuoteBundle], list[QuoteBundle]]:
+    stocks = [b for b in bundles if b.theme == CN_STOCK_THEME]
+    etfs = [b for b in bundles if b.theme != CN_STOCK_THEME]
+    return stocks, etfs
+
+
+def _rank_bundles(kind: str, items: list[QuoteBundle]) -> list[QuoteBundle]:
+    rank_days = 7 if kind == "weekly" else 30
+    rank_values = {
+        id(b): change_by_calendar_days(b.hist, b.price, rank_days) for b in items
+    }
+    return sorted(
+        items,
+        key=lambda b: (
+            rank_values[id(b)] is not None,
+            rank_values[id(b)] if rank_values[id(b)] is not None else float("-inf"),
+        ),
+        reverse=True,
+    )
+
+
+def _build_tables(
+    kind: str,
+    bundles: list[QuoteBundle],
+    *,
+    group_label: str | None = None,
+) -> list[dict]:
+    """Build image tables; optionally keep one merged group instead of per-theme splits."""
+    columns = _columns_for(kind)
+    tables: list[dict] = []
+    horizon = "近1周" if kind == "weekly" else "近1月"
+
+    if group_label:
+        items = _rank_bundles(kind, bundles)
+        rows = [_row_for(kind, b) for b in items]
+        for i in range(0, len(rows), 10):
+            chunk = rows[i : i + 10]
+            title = (
+                f"{group_label}｜按{horizon}强→弱"
+                if i == 0
+                else f"{group_label}（续）｜按{horizon}强→弱"
+            )
+            tables.append(
+                {
+                    "title": title,
+                    "columns": columns,
+                    "rows": chunk,
+                    "page_size": len(chunk),
+                }
+            )
+        return tables
+
     order = ("tech_etf", "nasdaq_cn", "sector_etf", "stock", "nasdaq_us", "macro", "")
     grouped: dict[str, list[QuoteBundle]] = {}
     for b in bundles:
         grouped.setdefault(b.theme or "", []).append(b)
 
-    columns = _columns_for(kind)
-    tables: list[dict] = []
     themes = [t for t in order if grouped.get(t)] + [
         t for t in grouped if t not in order
     ]
     for theme in themes:
-        items = grouped[theme]
-        rank_days = 7 if kind == "weekly" else 30
-        rank_values = {
-            id(b): change_by_calendar_days(b.hist, b.price, rank_days) for b in items
-        }
-        items = sorted(
-            items,
-            key=lambda b: (
-                rank_values[id(b)] is not None,
-                rank_values[id(b)]
-                if rank_values[id(b)] is not None
-                else float("-inf"),
-            ),
-            reverse=True,
-        )
+        items = _rank_bundles(kind, grouped[theme])
         label = THEME_LABELS.get(theme, theme or "其他")
         rows = [_row_for(kind, b) for b in items]
         for i in range(0, len(rows), 10):
             chunk = rows[i : i + 10]
-            horizon = "近1周" if kind == "weekly" else "近1月"
             title = (
                 f"{label}｜按{horizon}强→弱"
                 if i == 0
@@ -322,8 +360,8 @@ def _market_header(kind: str, bundles: list[QuoteBundle]) -> str:
 
 
 def _sector_board(bundles: list[QuoteBundle], kind: str) -> list[str]:
-    """Relative strength board for sector/tech ETFs."""
-    etfs = [b for b in bundles if b.theme in {"tech_etf", "sector_etf", "nasdaq_cn"}]
+    """Relative strength board for CN ETFs."""
+    etfs = [b for b in bundles if b.market == "cn" and b.theme != CN_STOCK_THEME]
     if not etfs:
         return []
     horizon = "1周" if kind != "daily" else "1日"
@@ -347,7 +385,7 @@ def _sector_board(bundles: list[QuoteBundle], kind: str) -> list[str]:
     rows.sort(key=lambda x: x[2], reverse=True)
     top = rows[:5]
     bottom = list(reversed(rows[-5:]))
-    lines = [f"板块ETF强弱榜（按{horizon}）:"]
+    lines = [f"A股ETF强弱榜（按{horizon}）:"]
     lines.append(
         "偏强: " + "；".join(f"{n}[{t}] {_fmt_pct(v)}" for n, t, v in top)
     )
@@ -491,25 +529,37 @@ def run_report(
         all_bundles.extend(bundles)
 
         market_label = MARKET_TITLE.get(market, market.upper()).replace("日报", "")
-        # A股拆成「个股/跨境」与「板块ETF」两张卡，避免飞书正文过长截断。
-        groups: list[tuple[str, list[QuoteBundle]]]
+        groups: list[tuple[str, list[QuoteBundle], str | None]]
         if market == "cn":
-            core = [b for b in bundles if b.theme in {"stock", "nasdaq_cn", ""}]
-            etfs = [b for b in bundles if b.theme in {"tech_etf", "sector_etf"}]
+            stocks, etfs = _split_cn_bundles(bundles)
             groups = []
-            if core:
-                groups.append((f"{REPORT_TITLES[kind]} · {market_label}个股", core))
+            if stocks:
+                groups.append(
+                    (
+                        f"{REPORT_TITLES[kind]} · {CN_STOCK_TITLE}",
+                        stocks,
+                        CN_STOCK_TITLE,
+                    )
+                )
             if etfs:
-                groups.append((f"{REPORT_TITLES[kind]} · 板块ETF", etfs))
+                groups.append(
+                    (
+                        f"{REPORT_TITLES[kind]} · {CN_ETF_TITLE}",
+                        etfs,
+                        CN_ETF_TITLE,
+                    )
+                )
             if not groups:
-                groups = [(f"{REPORT_TITLES[kind]} · {market_label}行情", bundles)]
+                groups = [(f"{REPORT_TITLES[kind]} · {market_label}行情", bundles, None)]
         else:
-            groups = [(f"{REPORT_TITLES[kind]} · {market_label}行情", bundles)]
+            groups = [(f"{REPORT_TITLES[kind]} · {market_label}行情", bundles, None)]
 
-        for title, group in groups:
+        for title, group, group_label in groups:
             header = _market_header(kind, group)
-            tables = _build_tables(kind, group)
-            if errors and (group is bundles or title.endswith("个股")):
+            tables = _build_tables(kind, group, group_label=group_label)
+            if errors and group is bundles:
+                header += "\n\n**拉取失败：** " + ", ".join(errors)
+            elif errors and title.endswith(CN_STOCK_TITLE):
                 header += "\n\n**拉取失败：** " + ", ".join(errors)
             if dry_run:
                 log.info("[dry-run] %s tables=%d\n%s", title, len(tables), header)

@@ -4,9 +4,12 @@ import pandas as pd
 
 from src.fetch_quotes import QuoteBundle
 from src.reports import (
+    CN_ETF_TITLE,
+    CN_STOCK_TITLE,
     _build_tables,
     _facts_for_llm,
     _row_daily,
+    _split_cn_bundles,
     _stage_label,
     _style_comment,
     _year_position,
@@ -49,6 +52,30 @@ def test_year_position_uses_one_year_range():
 
     assert position == 100.0
     assert drawdown == 0.0
+
+
+def test_split_cn_bundles_into_stocks_and_etfs():
+    stock = _bundle("招商银行", "600036", 80.0, 120.0)
+    etf = _bundle("沪深300ETF", "510300", 80.0, 110.0)
+    etf.theme = "sector_etf"
+    gold = _bundle("黄金ETF华安", "518880", 80.0, 105.0)
+    gold.theme = "macro"
+
+    stocks, etfs = _split_cn_bundles([stock, etf, gold])
+
+    assert [b.code for b in stocks] == ["600036"]
+    assert {b.code for b in etfs} == {"510300", "518880"}
+
+
+def test_build_tables_can_merge_one_cn_group():
+    stock_a = _bundle("偏强", "600001", 80.0, 120.0)
+    stock_b = _bundle("偏弱", "600002", 120.0, 90.0)
+
+    tables = _build_tables("daily", [stock_a, stock_b], group_label=CN_STOCK_TITLE)
+
+    assert len(tables) == 1
+    assert tables[0]["title"].startswith(f"{CN_STOCK_TITLE}｜按近1月强→弱")
+    assert tables[0]["rows"][0]["name"] == "**偏强**"
 
 
 def test_tables_rank_stronger_recent_performance_first():
