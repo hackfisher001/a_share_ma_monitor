@@ -23,20 +23,12 @@ stocks:
     name: "招商银行"
     market: cn
     theme: stock
-  - code: "601398"
-    name: "工商银行"
+  - code: "600941"
+    name: "中国移动"
     market: cn
     theme: stock
-  - code: "601939"
-    name: "建设银行"
-    market: cn
-    theme: stock
-  - code: "601288"
-    name: "农业银行"
-    market: cn
-    theme: stock
-  - code: "601988"
-    name: "中国银行"
+  - code: "600377"
+    name: "宁沪高速"
     market: cn
     theme: stock
   - code: "600900"
@@ -61,40 +53,6 @@ stocks:
     name: "纳指ETF广发"
     market: cn
     theme: nasdaq_cn
-
-  # —— 科技类板块 ETF ——
-  - code: "588000"
-    name: "科创50ETF"
-    market: cn
-    theme: tech_etf
-  - code: "159915"
-    name: "创业板ETF"
-    market: cn
-    theme: tech_etf
-  - code: "512480"
-    name: "半导体ETF"
-    market: cn
-    theme: tech_etf
-  - code: "159995"
-    name: "芯片ETF"
-    market: cn
-    theme: tech_etf
-  - code: "159819"
-    name: "人工智能ETF"
-    market: cn
-    theme: tech_etf
-  - code: "515050"
-    name: "5GETF"
-    market: cn
-    theme: tech_etf
-  - code: "515790"
-    name: "光伏ETF"
-    market: cn
-    theme: tech_etf
-  - code: "515030"
-    name: "新能源车ETF"
-    market: cn
-    theme: tech_etf
 
   # —— 其他主要板块 ETF ——
   - code: "510300"
