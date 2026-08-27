@@ -1,0 +1,775 @@
+{
+  "short": {
+    "recommended": {
+      "profile": "short",
+      "lookback_high": 10,
+      "max_hold_days": 10,
+      "buy_dd_pct": 1.5,
+      "sell_bounce_pct": 3.0,
+      "stop_loss_pct": null,
+      "empirical_dd_p25": -3.72,
+      "empirical_bounce_p50": 1.37,
+      "symbols_tested": 5,
+      "symbols_with_edge": 1,
+      "symbols_with_edge_names": [
+        "中国移动"
+      ]
+    },
+    "symbols": [
+      {
+        "name": "招商银行",
+        "profile": "short",
+        "trades": 49,
+        "trades_per_year": 11.3,
+        "win_rate": 63.3,
+        "avg_net_pct": -0.13,
+        "worst_net_pct": -8.41,
+        "ann_net_pct": -1.48,
+        "ann_net_per_exposure_pct": -5.54,
+        "buy_hold_ann_pct": 6.16,
+        "edge_vs_hold_pct": -7.64,
+        "combo_ann_pct": 2.34,
+        "combo_edge_pct": -3.82,
+        "max_drawdown_pct": -22.46,
+        "avg_hold_days": 5.8,
+        "exposure": 0.27,
+        "exit_reasons": {
+          "target": 29,
+          "max_hold": 19,
+          "stop_loss": 1
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 2.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 2.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 1.0,
+            "stop_loss_pct": 6.0,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "宁沪高速",
+        "profile": "short",
+        "trades": 42,
+        "trades_per_year": 9.7,
+        "win_rate": 61.9,
+        "avg_net_pct": 0.65,
+        "worst_net_pct": -7.9,
+        "ann_net_pct": 6.24,
+        "ann_net_per_exposure_pct": 23.27,
+        "buy_hold_ann_pct": 15.62,
+        "edge_vs_hold_pct": -9.38,
+        "combo_ann_pct": 10.93,
+        "combo_edge_pct": -4.69,
+        "max_drawdown_pct": -13.36,
+        "avg_hold_days": 6.8,
+        "exposure": 0.27,
+        "exit_reasons": {
+          "target": 22,
+          "max_hold": 17,
+          "stop_loss": 1,
+          "open_at_end": 2
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 2.0,
+            "sell_bounce_pct": 2.5,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 2.0,
+            "sell_bounce_pct": 2.5,
+            "stop_loss_pct": 6.0,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 3,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "长江电力",
+        "profile": "short",
+        "trades": 28,
+        "trades_per_year": 6.5,
+        "win_rate": 50.0,
+        "avg_net_pct": -0.01,
+        "worst_net_pct": -5.45,
+        "ann_net_pct": -0.08,
+        "ann_net_per_exposure_pct": -0.35,
+        "buy_hold_ann_pct": 9.57,
+        "edge_vs_hold_pct": -9.65,
+        "combo_ann_pct": 4.74,
+        "combo_edge_pct": -4.82,
+        "max_drawdown_pct": -13.55,
+        "avg_hold_days": 8.4,
+        "exposure": 0.22,
+        "exit_reasons": {
+          "max_hold": 18,
+          "target": 7,
+          "stop_loss": 2,
+          "open_at_end": 1
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": 4.0,
+            "cooldown_days": 3,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 3.5,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 3,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 3.5,
+            "sell_bounce_pct": 2.5,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "中国神华",
+        "profile": "short",
+        "trades": 63,
+        "trades_per_year": 14.5,
+        "win_rate": 54.0,
+        "avg_net_pct": 0.43,
+        "worst_net_pct": -18.43,
+        "ann_net_pct": 6.29,
+        "ann_net_per_exposure_pct": 13.77,
+        "buy_hold_ann_pct": 18.79,
+        "edge_vs_hold_pct": -12.49,
+        "combo_ann_pct": 12.54,
+        "combo_edge_pct": -6.25,
+        "max_drawdown_pct": -25.05,
+        "avg_hold_days": 7.6,
+        "exposure": 0.46,
+        "exit_reasons": {
+          "max_hold": 37,
+          "target": 26
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 3,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 2.0,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 3,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 2.0,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 3,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "中国移动",
+        "profile": "short",
+        "trades": 41,
+        "trades_per_year": 12.4,
+        "win_rate": 65.9,
+        "avg_net_pct": 0.73,
+        "worst_net_pct": -5.16,
+        "ann_net_pct": 9.06,
+        "ann_net_per_exposure_pct": 22.85,
+        "buy_hold_ann_pct": 2.91,
+        "edge_vs_hold_pct": 6.15,
+        "combo_ann_pct": 5.99,
+        "combo_edge_pct": 3.07,
+        "max_drawdown_pct": -7.01,
+        "avg_hold_days": 7.8,
+        "exposure": 0.4,
+        "exit_reasons": {
+          "target": 18,
+          "max_hold": 23
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 1.5,
+            "sell_bounce_pct": 3.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          }
+        ]
+      }
+    ],
+    "dip_stats": {
+      "招商银行": {
+        "dd_p25": -4.52,
+        "dd_p10": -6.95,
+        "dd_median": -2.56,
+        "bounce_p50": 1.51,
+        "bounce_p25": -0.01,
+        "samples": 296
+      },
+      "宁沪高速": {
+        "dd_p25": -3.58,
+        "dd_p10": -4.95,
+        "dd_median": -2.09,
+        "bounce_p50": 1.37,
+        "bounce_p25": 0.35,
+        "samples": 294
+      },
+      "长江电力": {
+        "dd_p25": -2.84,
+        "dd_p10": -4.11,
+        "dd_median": -1.61,
+        "bounce_p50": 1.25,
+        "bounce_p25": 0.31,
+        "samples": 290
+      },
+      "中国神华": {
+        "dd_p25": -4.52,
+        "dd_p10": -6.8,
+        "dd_median": -2.53,
+        "bounce_p50": 3.21,
+        "bounce_p25": 1.09,
+        "samples": 288
+      },
+      "中国移动": {
+        "dd_p25": -3.72,
+        "dd_p10": -5.84,
+        "dd_median": -2.1,
+        "bounce_p50": 1.32,
+        "bounce_p25": 0.26,
+        "samples": 228
+      }
+    }
+  },
+  "mid": {
+    "recommended": {
+      "profile": "mid",
+      "lookback_high": 20,
+      "max_hold_days": 30,
+      "buy_dd_pct": 6.0,
+      "sell_bounce_pct": 8.0,
+      "stop_loss_pct": 15.0,
+      "empirical_dd_p25": -11.82,
+      "empirical_bounce_p50": 8.57,
+      "symbols_tested": 5,
+      "symbols_with_edge": 0,
+      "symbols_with_edge_names": []
+    },
+    "symbols": [
+      {
+        "name": "紫金矿业",
+        "profile": "mid",
+        "trades": 21,
+        "trades_per_year": 4.9,
+        "win_rate": 66.7,
+        "avg_net_pct": 1.98,
+        "worst_net_pct": -19.68,
+        "ann_net_pct": 9.64,
+        "ann_net_per_exposure_pct": 21.73,
+        "buy_hold_ann_pct": 37.7,
+        "edge_vs_hold_pct": -28.06,
+        "combo_ann_pct": 23.67,
+        "combo_edge_pct": -14.03,
+        "max_drawdown_pct": -49.37,
+        "avg_hold_days": 22.2,
+        "exposure": 0.44,
+        "exit_reasons": {
+          "max_hold": 9,
+          "target": 8,
+          "stop_loss": 3,
+          "open_at_end": 1
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 6.0,
+            "sell_bounce_pct": 10.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 7,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 6.0,
+            "sell_bounce_pct": 10.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 7,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 6.0,
+            "sell_bounce_pct": 10.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 7,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "特斯拉",
+        "profile": "mid",
+        "trades": 19,
+        "trades_per_year": 4.4,
+        "win_rate": 57.9,
+        "avg_net_pct": -1.15,
+        "worst_net_pct": -23.51,
+        "ann_net_pct": -5.04,
+        "ann_net_per_exposure_pct": -20.31,
+        "buy_hold_ann_pct": 4.32,
+        "edge_vs_hold_pct": -9.36,
+        "combo_ann_pct": -0.36,
+        "combo_edge_pct": -4.68,
+        "max_drawdown_pct": -68.44,
+        "avg_hold_days": 14.2,
+        "exposure": 0.25,
+        "exit_reasons": {
+          "stop_loss": 5,
+          "max_hold": 4,
+          "target": 9,
+          "open_at_end": 1
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 6.0,
+            "sell_bounce_pct": 8.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 10,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 6.0,
+            "sell_bounce_pct": 8.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 10,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 12.0,
+            "sell_bounce_pct": 4.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 7,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "AMD",
+        "profile": "mid",
+        "trades": 29,
+        "trades_per_year": 6.7,
+        "win_rate": 82.8,
+        "avg_net_pct": 3.44,
+        "worst_net_pct": -23.35,
+        "ann_net_pct": 23.03,
+        "ann_net_per_exposure_pct": 94.62,
+        "buy_hold_ann_pct": 86.69,
+        "edge_vs_hold_pct": -63.66,
+        "combo_ann_pct": 54.86,
+        "combo_edge_pct": -31.83,
+        "max_drawdown_pct": -23.35,
+        "avg_hold_days": 9.1,
+        "exposure": 0.24,
+        "exit_reasons": {
+          "target": 24,
+          "max_hold": 2,
+          "stop_loss": 2,
+          "open_at_end": 1
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 12.0,
+            "sell_bounce_pct": 5.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 4.0,
+            "sell_bounce_pct": 5.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 10,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 4.0,
+            "sell_bounce_pct": 6.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 10,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "英伟达",
+        "profile": "mid",
+        "trades": 26,
+        "trades_per_year": 6.0,
+        "win_rate": 69.2,
+        "avg_net_pct": 4.18,
+        "worst_net_pct": -20.79,
+        "ann_net_pct": 25.07,
+        "ann_net_per_exposure_pct": 65.47,
+        "buy_hold_ann_pct": 86.79,
+        "edge_vs_hold_pct": -61.72,
+        "combo_ann_pct": 55.93,
+        "combo_edge_pct": -30.86,
+        "max_drawdown_pct": -28.69,
+        "avg_hold_days": 16.0,
+        "exposure": 0.38,
+        "exit_reasons": {
+          "target": 16,
+          "open_at_end": 3,
+          "max_hold": 6,
+          "stop_loss": 1
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 6.0,
+            "sell_bounce_pct": 10.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 10,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 6.0,
+            "sell_bounce_pct": 10.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 10,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 5.0,
+            "sell_bounce_pct": 10.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "美光",
+        "profile": "mid",
+        "trades": 40,
+        "trades_per_year": 9.2,
+        "win_rate": 67.5,
+        "avg_net_pct": 1.38,
+        "worst_net_pct": -17.24,
+        "ann_net_pct": 12.78,
+        "ann_net_per_exposure_pct": 43.22,
+        "buy_hold_ann_pct": 203.29,
+        "edge_vs_hold_pct": -190.51,
+        "combo_ann_pct": 108.03,
+        "combo_edge_pct": -95.25,
+        "max_drawdown_pct": -52.25,
+        "avg_hold_days": 8.1,
+        "exposure": 0.3,
+        "exit_reasons": {
+          "target": 27,
+          "max_hold": 3,
+          "open_at_end": 2,
+          "stop_loss": 8
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 4.0,
+            "sell_bounce_pct": 4.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 8.0,
+            "sell_bounce_pct": 8.0,
+            "stop_loss_pct": 15.0,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 4.0,
+            "sell_bounce_pct": 4.0,
+            "stop_loss_pct": 10.0,
+            "cooldown_days": 5,
+            "sell_near_high_pct": null
+          }
+        ]
+      }
+    ],
+    "dip_stats": {
+      "紫金矿业": {
+        "dd_p25": -9.37,
+        "dd_p10": -14.3,
+        "dd_median": -5.29,
+        "bounce_p50": 5.91,
+        "bounce_p25": 3.07,
+        "samples": 313
+      },
+      "特斯拉": {
+        "dd_p25": -14.47,
+        "dd_p10": -21.54,
+        "dd_median": -8.43,
+        "bounce_p50": 8.57,
+        "bounce_p25": 4.18,
+        "samples": 320
+      },
+      "AMD": {
+        "dd_p25": -13.13,
+        "dd_p10": -18.32,
+        "dd_median": -7.94,
+        "bounce_p50": 6.92,
+        "bounce_p25": 2.83,
+        "samples": 317
+      },
+      "英伟达": {
+        "dd_p25": -10.57,
+        "dd_p10": -16.97,
+        "dd_median": -6.05,
+        "bounce_p50": 10.05,
+        "bounce_p25": 4.37,
+        "samples": 308
+      },
+      "美光": {
+        "dd_p25": -11.82,
+        "dd_p10": -17.0,
+        "dd_median": -6.62,
+        "bounce_p50": 11.05,
+        "bounce_p25": 4.06,
+        "samples": 312
+      }
+    }
+  },
+  "slow": {
+    "recommended": {
+      "profile": "slow",
+      "lookback_high": 252,
+      "max_hold_days": 120,
+      "buy_dd_pct": 15.0,
+      "sell_bounce_pct": 6.0,
+      "stop_loss_pct": 20.0,
+      "empirical_dd_p25": -13.65,
+      "empirical_bounce_p50": 6.7,
+      "symbols_tested": 3,
+      "symbols_with_edge": 0,
+      "symbols_with_edge_names": []
+    },
+    "symbols": [
+      {
+        "name": "纳指ETF广发",
+        "profile": "slow",
+        "trades": 4,
+        "trades_per_year": 1.1,
+        "win_rate": 100.0,
+        "avg_net_pct": 6.57,
+        "worst_net_pct": 6.05,
+        "ann_net_pct": 7.28,
+        "ann_net_per_exposure_pct": 167.8,
+        "buy_hold_ann_pct": 33.0,
+        "edge_vs_hold_pct": -25.73,
+        "combo_ann_pct": 20.14,
+        "combo_edge_pct": -12.86,
+        "max_drawdown_pct": 0.0,
+        "avg_hold_days": 9.5,
+        "exposure": 0.04,
+        "exit_reasons": {
+          "target": 4
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 15.0,
+            "sell_bounce_pct": 6.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 15.0,
+            "sell_bounce_pct": 6.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 15.0,
+            "sell_bounce_pct": 6.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "黄金ETF华安",
+        "note": "训练区间内没有满足频次约束的参数组合"
+      },
+      {
+        "name": "沪深300ETF",
+        "profile": "slow",
+        "trades": 4,
+        "trades_per_year": 1.1,
+        "win_rate": 50.0,
+        "avg_net_pct": 2.54,
+        "worst_net_pct": -7.55,
+        "ann_net_pct": 2.82,
+        "ann_net_per_exposure_pct": 6.53,
+        "buy_hold_ann_pct": 6.77,
+        "edge_vs_hold_pct": -3.95,
+        "combo_ann_pct": 4.79,
+        "combo_edge_pct": -1.97,
+        "max_drawdown_pct": -9.42,
+        "avg_hold_days": 94.5,
+        "exposure": 0.43,
+        "exit_reasons": {
+          "max_hold": 2,
+          "target": 2
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 8.0,
+            "sell_bounce_pct": 6.0,
+            "stop_loss_pct": 20.0,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 15.0,
+            "sell_bounce_pct": 8.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 15.0,
+            "sell_bounce_pct": 8.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          }
+        ]
+      },
+      {
+        "name": "纳指100ETF",
+        "profile": "slow",
+        "trades": 2,
+        "trades_per_year": 0.6,
+        "win_rate": 100.0,
+        "avg_net_pct": 8.73,
+        "worst_net_pct": 8.38,
+        "ann_net_pct": 4.96,
+        "ann_net_per_exposure_pct": 51.69,
+        "buy_hold_ann_pct": 29.24,
+        "edge_vs_hold_pct": -24.28,
+        "combo_ann_pct": 17.1,
+        "combo_edge_pct": -12.14,
+        "max_drawdown_pct": 0.0,
+        "avg_hold_days": 42.5,
+        "exposure": 0.1,
+        "exit_reasons": {
+          "target": 2
+        },
+        "fold_params": [
+          {
+            "buy_dd_pct": 15.0,
+            "sell_bounce_pct": 8.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 15.0,
+            "sell_bounce_pct": 8.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 30,
+            "sell_near_high_pct": null
+          },
+          {
+            "buy_dd_pct": 12.0,
+            "sell_bounce_pct": 5.0,
+            "stop_loss_pct": null,
+            "cooldown_days": 21,
+            "sell_near_high_pct": null
+          }
+        ]
+      }
+    ],
+    "dip_stats": {
+      "纳指ETF广发": {
+        "dd_p25": -14.95,
+        "dd_p10": -21.6,
+        "dd_median": -7.21,
+        "bounce_p50": 8.06,
+        "bounce_p25": 5.14,
+        "samples": 322
+      },
+      "黄金ETF华安": {
+        "dd_p25": -10.12,
+        "dd_p10": -15.38,
+        "dd_median": -5.46,
+        "bounce_p50": 2.55,
+        "bounce_p25": 0.84,
+        "samples": 273
+      },
+      "沪深300ETF": {
+        "dd_p25": -16.21,
+        "dd_p10": -21.81,
+        "dd_median": -12.53,
+        "bounce_p50": 5.33,
+        "bounce_p25": 1.14,
+        "samples": 342
+      },
+      "纳指100ETF": {
+        "dd_p25": -12.36,
+        "dd_p10": -26.75,
+        "dd_median": -4.27,
+        "bounce_p50": 8.98,
+        "bounce_p25": 4.97,
+        "samples": 308
+      }
+    }
+  }
+}

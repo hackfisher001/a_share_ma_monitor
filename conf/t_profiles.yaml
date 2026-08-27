@@ -1,0 +1,31 @@
+# Walk-forward calibrated swing-T references (scripts/backtest_t_params.py)
+# 样本外结果，已扣交易成本，含止损/最长持有/期末平仓。
+# 仅作为观察提醒阈值，不构成买卖指令。
+profiles:
+  short:
+    lookback_high: 10
+    buy_dd_pct: 1.5
+    sell_bounce_pct: 3.0
+    stop_loss_pct: null
+    max_hold_days: 10
+    empirical_dd_p25: -3.72
+    empirical_bounce_p50: 1.37
+    # 样本外跑赢持有: 1/5
+  mid:
+    lookback_high: 20
+    buy_dd_pct: 6.0
+    sell_bounce_pct: 8.0
+    stop_loss_pct: 15.0
+    max_hold_days: 30
+    empirical_dd_p25: -11.82
+    empirical_bounce_p50: 8.57
+    # 样本外跑赢持有: 0/5
+  slow:
+    lookback_high: 252
+    buy_dd_pct: 15.0
+    sell_bounce_pct: 6.0
+    stop_loss_pct: 20.0
+    max_hold_days: 120
+    empirical_dd_p25: -13.65
+    empirical_bounce_p50: 6.7
+    # 样本外跑赢持有: 0/3
