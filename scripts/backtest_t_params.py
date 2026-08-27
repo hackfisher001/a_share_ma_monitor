@@ -93,9 +93,11 @@ def main() -> int:
 
     OUT_YAML.parent.mkdir(parents=True, exist_ok=True)
     yaml_lines = [
+        "# 已废弃：本文件不被运行时读取，仅作研究留档。",
+        "# 这里的 short/mid/slow 三档设计假设本金一次到位，而实际资金是每月工资到账。",
+        "# 按真实现金流重跑后（docs/定投与做T回测.md），三档全部输给「工资到账就买」，",
+        "# 线上只保留单一参数（-5% 低吸 / +5% 高抛）且仅对招行、中国移动开启，配置在 watchlist.yaml。",
         "# Walk-forward calibrated swing-T references (scripts/backtest_t_params.py)",
-        "# 样本外结果，已扣交易成本，含止损/最长持有/期末平仓。",
-        "# 仅作为观察提醒阈值，不构成买卖指令。",
         "profiles:",
     ]
     for profile in ("short", "mid", "slow"):

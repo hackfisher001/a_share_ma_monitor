@@ -287,7 +287,7 @@ def send_dingtalk(text: str, webhook_url: str | None = None) -> None:
 def send_alert(
     text: str = "",
     *,
-    title: str = "加仓提醒 · MA30",
+    title: str = "走势提示 · MA30",
     tables: list[TableSpec] | None = None,
     markdown: str | None = None,
     image_keys: list[str] | None = None,

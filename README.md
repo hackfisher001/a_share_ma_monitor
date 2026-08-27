@@ -43,6 +43,37 @@ python -m src.main --dry-run       # 只算信号，不推送
 python -m src.main                 # 正式推送
 ```
 
+## 推送的三类消息
+
+| 类型 | 触发 | 定位 |
+|---|---|---|
+| 走势提示 · MA30 | 现价距 MA30 在 ±`touch_pct` 以内 | 信息，不是行动建议 |
+| 回撤观察 · N% | 距 252 日高点跨过 `drawdown_levels` 的某一档 | 信息，不是行动建议 |
+| 做T · 低吸 / 高抛 | 见下 | 行动建议，只动机动仓 |
+
+前两类**只回答「现在贵还是便宜」**，不代表该推迟买入。12.3 年回测（`docs/定投与做T回测.md`，含 2015、2018、2022 三轮下跌）显示「攒钱等回撤」在 13 个标的上 **0 胜**，等 -10% 平均每年少赚 1.71%，等 -20% 少赚 3.56%。工资到账就买是最优解。
+
+## 做 T（低吸 / 高抛）
+
+默认**只对招商银行、中国移动开启**——这两只是 13 个标的里唯一在 -8%/+8% 与 -5%/+5% 两组参数下都跑赢定投的。成长股（英伟达、AMD、美光、紫金）和所有 ETF 一律不开，回测中它们每年输给定投 3%~9%。
+
+规则（`watchlist.yaml` 的 `swing_t`）：
+
+- 现价距 252 日高点 ≤ `-buy_drawdown_pct`（5%）→ 发**低吸**，随后解除武装
+- 回升到距高点 `-rearm_pct`（4%）以内 → 重新武装，可再低吸，最多 `max_adds`（4）笔
+- 机动仓均价浮盈 ≥ `+sell_bounce_pct`（5%）→ 发**高抛**，清空机动仓
+
+给某只股票开启，加一行即可：
+
+```yaml
+  - code: "600036"
+    name: "招商银行"
+    market: cn
+    swing_t: true
+```
+
+机动仓状态（笔数、均价、是否武装）记在 `data/alert_state.json` 的 `t_sleeve` 里，跨次运行保留。它是账本而不是去重标记，所以 `--force` 不会重放做 T 提醒；`--dry-run` 也不会写入。
+
 ## 每日股价日报
 
 交易日自动推送飞书（也可手动）：
@@ -88,12 +119,19 @@ watchlist.yaml
 .env.example                # 飞书 Webhook
 src/notify.py               # 飞书卡片推送（主）
 src/fetch_quotes.py
-src/signals.py
+src/signals.py              # MA30 / 回撤观察
+src/t_signals.py            # 做T 低吸/高抛 + 机动仓状态
 src/state.py
 src/main.py                 # --notify-test / --dry-run
 scripts/run_once.sh
 scripts/install_aliyun.sh
 .github/workflows/monitor.yml
+
+# 研究（不参与线上运行）
+src/dca_backtest.py         # 按每月工资+年终奖的现金流回测
+src/history_quality.py      # 长周期行情清洗（拆股还原、异常剔除）
+scripts/backtest_dca_vs_t.py
+docs/定投与做T回测.md        # 结论与全部明细
 ```
 
 ## 免责声明

@@ -33,6 +33,7 @@ from src.signals import (
     is_touching_ma30,
 )
 from src.state import AlertState
+from src.t_signals import TConfig, TSleeve, evaluate_t, sleeve_status_line
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,6 +52,7 @@ class ScanConfig:
     recent_pullback: bool
     recent_pullback_percentile: float
     recent_pullback_cooldown_days: int
+    swing_t: TConfig
 
 
 def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
@@ -74,6 +76,7 @@ def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
             data.get("recent_pullback_percentile", RECENT_PERCENTILE)
         ),
         recent_pullback_cooldown_days=int(data.get("recent_pullback_cooldown_days", 7)),
+        swing_t=TConfig.from_dict(data.get("swing_t")),
     )
     stocks = data.get("stocks") or []
     if not stocks:
@@ -130,6 +133,57 @@ def _dispatch_alert(
     )
 
 
+def drawdown_levels_for(item: dict, config: ScanConfig) -> tuple[float, ...]:
+    """Drop bands a T symbol already covers, so one dip is not reported twice.
+
+    A T 低吸 alert fires at exactly the shallow drawdown the observe bands watch,
+    but carries the sleeve context, so it supersedes them.
+    """
+    if not item.get("swing_t"):
+        return config.drawdown_levels
+    floor = config.swing_t.buy_drawdown_pct
+    return tuple(level for level in config.drawdown_levels if level > floor)
+
+
+def _run_swing_t(
+    *,
+    item: dict,
+    snap: QuoteSnapshot,
+    ctx,
+    config: ScanConfig,
+    state: AlertState,
+    state_key: str,
+    dry_run: bool,
+) -> int:
+    """Advance one symbol's T sleeve, alert on transitions, persist the result."""
+    sleeve_key = f"t:{state_key}"
+    sleeve = TSleeve.from_dict(state.t_sleeve(sleeve_key))
+    before = sleeve.to_dict()
+
+    signal = evaluate_t(snap, sleeve, config.swing_t)
+    sent = 0
+    if signal is not None:
+        channel = _dispatch_alert(
+            title=signal.title,
+            headline=signal.message,
+            ctx=ctx,
+            dry_run=dry_run,
+        )
+        if not dry_run:
+            log.info("已通过 %s 发送%s: %s", channel, signal.title, state_key)
+        sent = 1
+
+    after = sleeve.to_dict()
+    if after != before:
+        # Re-arming happens without an alert, so persist on any state change.
+        if dry_run:
+            log.info("[dry-run] 机动仓状态将更新为 %s", after)
+        else:
+            state.save_t_sleeve(sleeve_key, after)
+    log.info("  机动仓 %s", sleeve_status_line(snap.name, snap.code, sleeve, snap.price))
+    return sent
+
+
 def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False) -> int:
     load_dotenv(ROOT / ".env")
     config, stocks = load_watchlist(watchlist_path)
@@ -167,11 +221,24 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 ctx.stage,
             )
 
+            # Swing-T is opt-in per symbol; the sleeve is bookkeeping, so --force
+            # must not replay it or the recorded average cost would drift.
+            if item.get("swing_t"):
+                alerts += _run_swing_t(
+                    item=item,
+                    snap=snap,
+                    ctx=ctx,
+                    config=config,
+                    state=state,
+                    state_key=state_key,
+                    dry_run=dry_run,
+                )
+
             ma_signal = is_touching_ma30(snap, config.touch_pct)
             if ma_signal is not None:
                 if force or not state.already_alerted(state_key):
                     channel = _dispatch_alert(
-                        title="加仓提醒 · MA30",
+                        title="走势提示 · MA30",
                         headline=ma_signal.message,
                         ctx=ctx,
                         dry_run=dry_run,
@@ -189,7 +256,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                     state.clear_drawdown_levels(state_key)
                 already = () if force else state.drawdown_fired_levels(state_key)
                 dd_signals = crossed_drawdown_levels(
-                    snap, config.drawdown_levels, already_fired=already
+                    snap, drawdown_levels_for(item, config), already_fired=already
                 )
                 for dd_signal in dd_signals:
                     level = dd_signal.threshold_pct

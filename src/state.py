@@ -1,4 +1,9 @@
-"""Alert deduplication: same-day MA30, per-episode drawdown level tracking."""
+"""Alert dedup plus the swing-T sleeve, which must survive across runs.
+
+Unlike the other flags here, the sleeve is not deduplication state: it records
+what the rolling half of a position is currently holding, so a 高抛 alert can be
+priced against the average cost of earlier 低吸 alerts.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ class AlertState:
             "alerted": [],
             "cooldown": {},
             "drawdown_fired": {},
+            "t_sleeve": {},
         }
         self._load()
 
@@ -40,11 +46,17 @@ class AlertState:
             except (TypeError, ValueError):
                 continue
         alerted = [] if raw.get("date") != _today() else list(raw.get("alerted") or [])
+        sleeves = {
+            str(k): dict(v)
+            for k, v in (raw.get("t_sleeve") or {}).items()
+            if isinstance(v, dict)
+        }
         self._data = {
             "date": _today(),
             "alerted": alerted,
             "cooldown": cooldown,
             "drawdown_fired": drawdown_fired,
+            "t_sleeve": sleeves,
         }
 
     def save(self) -> None:
@@ -95,3 +107,11 @@ class AlertState:
             del self._data["drawdown_fired"][key]
             self._data["date"] = _today()
             self.save()
+
+    def t_sleeve(self, key: str) -> dict:
+        return dict(self._data["t_sleeve"].get(str(key)) or {})
+
+    def save_t_sleeve(self, key: str, payload: dict) -> None:
+        self._data["t_sleeve"][str(key)] = dict(payload)
+        self._data["date"] = _today()
+        self.save()
