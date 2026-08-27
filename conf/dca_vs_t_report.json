@@ -1,0 +1,1165 @@
+{
+  "config": {
+    "monthly": 1.0,
+    "bonus": 3.0,
+    "bonus_month": 2,
+    "cash_yield_pct": 1.5
+  },
+  "summary": {
+    "A 无脑定投": {
+      "avg_edge_pct": 0.0,
+      "median_edge_pct": 0.0,
+      "wins": 0,
+      "total": 13
+    },
+    "B 定投+回撤加仓(-10%)": {
+      "avg_edge_pct": -0.66,
+      "median_edge_pct": -0.52,
+      "wins": 0,
+      "total": 13
+    },
+    "C 纯等回撤(-10%)": {
+      "avg_edge_pct": -1.71,
+      "median_edge_pct": -1.34,
+      "wins": 0,
+      "total": 13
+    },
+    "D 纯等回撤(-20%)": {
+      "avg_edge_pct": -3.56,
+      "median_edge_pct": -3.35,
+      "wins": 0,
+      "total": 13
+    },
+    "E 半底仓+机动仓做T(-8%/+8%)": {
+      "avg_edge_pct": -2.91,
+      "median_edge_pct": -3.39,
+      "wins": 2,
+      "total": 13
+    },
+    "F 半底仓+机动仓只买不卖(-8%)": {
+      "avg_edge_pct": -0.68,
+      "median_edge_pct": -0.7,
+      "wins": 0,
+      "total": 13
+    },
+    "G 半底仓+机动仓做T(-5%/+5%)": {
+      "avg_edge_pct": -2.82,
+      "median_edge_pct": -3.5,
+      "wins": 4,
+      "total": 13
+    }
+  },
+  "symbols": [
+    {
+      "bucket": "收息",
+      "name": "招商银行",
+      "code": "600036",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 2.064,
+          "mwr_pct": 11.2,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -47.1,
+          "worst_unrealized_pct": -0.8,
+          "avg_cash_frac": 0.0,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 1.916,
+          "mwr_pct": 10.1,
+          "edge_vs_dca_pct": -1.11,
+          "max_drawdown_pct": -46.0,
+          "worst_unrealized_pct": -0.5,
+          "avg_cash_frac": 0.07,
+          "buys": 164,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 1.695,
+          "mwr_pct": 8.25,
+          "edge_vs_dca_pct": -2.95,
+          "max_drawdown_pct": -43.7,
+          "worst_unrealized_pct": -4.0,
+          "avg_cash_frac": 0.2,
+          "buys": 16,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 1.764,
+          "mwr_pct": 8.85,
+          "edge_vs_dca_pct": -2.35,
+          "max_drawdown_pct": -44.3,
+          "worst_unrealized_pct": -2.7,
+          "avg_cash_frac": 0.26,
+          "buys": 5,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 2.116,
+          "mwr_pct": 11.58,
+          "edge_vs_dca_pct": 0.37,
+          "max_drawdown_pct": -45.3,
+          "worst_unrealized_pct": -0.4,
+          "avg_cash_frac": 0.15,
+          "buys": 177,
+          "sells": 19
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 2.014,
+          "mwr_pct": 10.84,
+          "edge_vs_dca_pct": -0.36,
+          "max_drawdown_pct": -46.2,
+          "worst_unrealized_pct": -0.4,
+          "avg_cash_frac": 0.06,
+          "buys": 177,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 2.2,
+          "mwr_pct": 12.15,
+          "edge_vs_dca_pct": 0.95,
+          "max_drawdown_pct": -45.5,
+          "worst_unrealized_pct": -1.3,
+          "avg_cash_frac": 0.11,
+          "buys": 202,
+          "sells": 31
+        }
+      ]
+    },
+    {
+      "bucket": "收息",
+      "name": "宁沪高速",
+      "code": "600377",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 1.79,
+          "mwr_pct": 9.07,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -36.1,
+          "worst_unrealized_pct": -1.4,
+          "avg_cash_frac": 0.0,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 1.737,
+          "mwr_pct": 8.62,
+          "edge_vs_dca_pct": -0.46,
+          "max_drawdown_pct": -35.5,
+          "worst_unrealized_pct": -0.9,
+          "avg_cash_frac": 0.08,
+          "buys": 158,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 1.657,
+          "mwr_pct": 7.9,
+          "edge_vs_dca_pct": -1.17,
+          "max_drawdown_pct": -34.5,
+          "worst_unrealized_pct": -3.8,
+          "avg_cash_frac": 0.21,
+          "buys": 10,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 1.632,
+          "mwr_pct": 7.68,
+          "edge_vs_dca_pct": -1.4,
+          "max_drawdown_pct": -25.7,
+          "worst_unrealized_pct": -19.7,
+          "avg_cash_frac": 0.41,
+          "buys": 4,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 1.734,
+          "mwr_pct": 8.59,
+          "edge_vs_dca_pct": -0.48,
+          "max_drawdown_pct": -31.6,
+          "worst_unrealized_pct": -5.3,
+          "avg_cash_frac": 0.19,
+          "buys": 166,
+          "sells": 12
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 1.737,
+          "mwr_pct": 8.62,
+          "edge_vs_dca_pct": -0.45,
+          "max_drawdown_pct": -35.4,
+          "worst_unrealized_pct": -0.7,
+          "avg_cash_frac": 0.07,
+          "buys": 166,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 1.642,
+          "mwr_pct": 7.77,
+          "edge_vs_dca_pct": -1.31,
+          "max_drawdown_pct": -33.7,
+          "worst_unrealized_pct": -3.7,
+          "avg_cash_frac": 0.13,
+          "buys": 185,
+          "sells": 21
+        }
+      ]
+    },
+    {
+      "bucket": "收息",
+      "name": "长江电力",
+      "code": "600900",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 2.181,
+          "mwr_pct": 12.23,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -16.4,
+          "worst_unrealized_pct": -0.7,
+          "avg_cash_frac": 0.0,
+          "buys": 144,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 2.118,
+          "mwr_pct": 11.79,
+          "edge_vs_dca_pct": -0.44,
+          "max_drawdown_pct": -16.2,
+          "worst_unrealized_pct": -0.4,
+          "avg_cash_frac": 0.05,
+          "buys": 162,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 2.025,
+          "mwr_pct": 11.11,
+          "edge_vs_dca_pct": -1.12,
+          "max_drawdown_pct": -15.9,
+          "worst_unrealized_pct": -6.3,
+          "avg_cash_frac": 0.15,
+          "buys": 18,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 1.425,
+          "mwr_pct": 5.69,
+          "edge_vs_dca_pct": -6.54,
+          "max_drawdown_pct": -5.3,
+          "worst_unrealized_pct": 0.0,
+          "avg_cash_frac": 0.6,
+          "buys": 1,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 2.171,
+          "mwr_pct": 12.16,
+          "edge_vs_dca_pct": -0.07,
+          "max_drawdown_pct": -11.9,
+          "worst_unrealized_pct": -0.3,
+          "avg_cash_frac": 0.23,
+          "buys": 165,
+          "sells": 16
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 2.072,
+          "mwr_pct": 11.45,
+          "edge_vs_dca_pct": -0.77,
+          "max_drawdown_pct": -16.2,
+          "worst_unrealized_pct": -0.3,
+          "avg_cash_frac": 0.06,
+          "buys": 165,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 2.045,
+          "mwr_pct": 11.25,
+          "edge_vs_dca_pct": -0.97,
+          "max_drawdown_pct": -14.2,
+          "worst_unrealized_pct": -0.3,
+          "avg_cash_frac": 0.16,
+          "buys": 193,
+          "sells": 22
+        }
+      ]
+    },
+    {
+      "bucket": "收息",
+      "name": "中国神华",
+      "code": "601088",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 3.739,
+          "mwr_pct": 19.98,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -40.3,
+          "worst_unrealized_pct": -20.2,
+          "avg_cash_frac": 0.0,
+          "buys": 146,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 3.642,
+          "mwr_pct": 19.6,
+          "edge_vs_dca_pct": -0.38,
+          "max_drawdown_pct": -39.3,
+          "worst_unrealized_pct": -19.5,
+          "avg_cash_frac": 0.05,
+          "buys": 173,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 3.497,
+          "mwr_pct": 19.01,
+          "edge_vs_dca_pct": -0.97,
+          "max_drawdown_pct": -37.6,
+          "worst_unrealized_pct": -19.8,
+          "avg_cash_frac": 0.13,
+          "buys": 27,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 3.152,
+          "mwr_pct": 17.5,
+          "edge_vs_dca_pct": -2.48,
+          "max_drawdown_pct": -34.7,
+          "worst_unrealized_pct": -20.4,
+          "avg_cash_frac": 0.24,
+          "buys": 6,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 3.607,
+          "mwr_pct": 19.46,
+          "edge_vs_dca_pct": -0.52,
+          "max_drawdown_pct": -36.4,
+          "worst_unrealized_pct": -20.8,
+          "avg_cash_frac": 0.15,
+          "buys": 181,
+          "sells": 21
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 3.602,
+          "mwr_pct": 19.44,
+          "edge_vs_dca_pct": -0.54,
+          "max_drawdown_pct": -39.0,
+          "worst_unrealized_pct": -19.5,
+          "avg_cash_frac": 0.06,
+          "buys": 180,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 3.982,
+          "mwr_pct": 20.9,
+          "edge_vs_dca_pct": 0.91,
+          "max_drawdown_pct": -37.5,
+          "worst_unrealized_pct": -23.9,
+          "avg_cash_frac": 0.11,
+          "buys": 213,
+          "sells": 33
+        }
+      ]
+    },
+    {
+      "bucket": "收息",
+      "name": "中国移动",
+      "code": "600941",
+      "span_years": 4.6,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 1.257,
+          "mwr_pct": 9.62,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -16.1,
+          "worst_unrealized_pct": -1.8,
+          "avg_cash_frac": 0.0,
+          "buys": 56,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 1.245,
+          "mwr_pct": 9.22,
+          "edge_vs_dca_pct": -0.4,
+          "max_drawdown_pct": -15.9,
+          "worst_unrealized_pct": -2.3,
+          "avg_cash_frac": 0.06,
+          "buys": 66,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 1.227,
+          "mwr_pct": 8.61,
+          "edge_vs_dca_pct": -1.01,
+          "max_drawdown_pct": -15.5,
+          "worst_unrealized_pct": -3.4,
+          "avg_cash_frac": 0.16,
+          "buys": 10,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 1.161,
+          "mwr_pct": 6.28,
+          "edge_vs_dca_pct": -3.35,
+          "max_drawdown_pct": -3.4,
+          "worst_unrealized_pct": 0.0,
+          "avg_cash_frac": 0.96,
+          "buys": 1,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 1.39,
+          "mwr_pct": 13.94,
+          "edge_vs_dca_pct": 4.32,
+          "max_drawdown_pct": -11.6,
+          "worst_unrealized_pct": -3.9,
+          "avg_cash_frac": 0.19,
+          "buys": 70,
+          "sells": 11
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 1.241,
+          "mwr_pct": 9.1,
+          "edge_vs_dca_pct": -0.52,
+          "max_drawdown_pct": -15.8,
+          "worst_unrealized_pct": -3.9,
+          "avg_cash_frac": 0.07,
+          "buys": 70,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 1.298,
+          "mwr_pct": 11.01,
+          "edge_vs_dca_pct": 1.39,
+          "max_drawdown_pct": -13.2,
+          "worst_unrealized_pct": -4.2,
+          "avg_cash_frac": 0.14,
+          "buys": 79,
+          "sells": 13
+        }
+      ]
+    },
+    {
+      "bucket": "成长",
+      "name": "紫金矿业",
+      "code": "601899",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 7.597,
+          "mwr_pct": 30.16,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -48.8,
+          "worst_unrealized_pct": -14.0,
+          "avg_cash_frac": 0.0,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 7.283,
+          "mwr_pct": 29.55,
+          "edge_vs_dca_pct": -0.61,
+          "max_drawdown_pct": -47.0,
+          "worst_unrealized_pct": -16.9,
+          "avg_cash_frac": 0.07,
+          "buys": 171,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 6.811,
+          "mwr_pct": 28.58,
+          "edge_vs_dca_pct": -1.58,
+          "max_drawdown_pct": -44.7,
+          "worst_unrealized_pct": -21.2,
+          "avg_cash_frac": 0.18,
+          "buys": 23,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 6.021,
+          "mwr_pct": 26.8,
+          "edge_vs_dca_pct": -3.36,
+          "max_drawdown_pct": -41.4,
+          "worst_unrealized_pct": -35.6,
+          "avg_cash_frac": 0.26,
+          "buys": 9,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 5.282,
+          "mwr_pct": 24.91,
+          "edge_vs_dca_pct": -5.25,
+          "max_drawdown_pct": -44.5,
+          "worst_unrealized_pct": -24.7,
+          "avg_cash_frac": 0.13,
+          "buys": 180,
+          "sells": 19
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 7.196,
+          "mwr_pct": 29.37,
+          "edge_vs_dca_pct": -0.78,
+          "max_drawdown_pct": -46.8,
+          "worst_unrealized_pct": -16.5,
+          "avg_cash_frac": 0.08,
+          "buys": 180,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 5.453,
+          "mwr_pct": 25.37,
+          "edge_vs_dca_pct": -4.79,
+          "max_drawdown_pct": -45.2,
+          "worst_unrealized_pct": -23.7,
+          "avg_cash_frac": 0.11,
+          "buys": 203,
+          "sells": 35
+        }
+      ]
+    },
+    {
+      "bucket": "成长",
+      "name": "AMD",
+      "code": "AMD",
+      "span_years": 11.6,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 39.763,
+          "mwr_pct": 57.77,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -65.1,
+          "worst_unrealized_pct": -37.3,
+          "avg_cash_frac": 0.0,
+          "buys": 140,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 37.618,
+          "mwr_pct": 56.86,
+          "edge_vs_dca_pct": -0.91,
+          "max_drawdown_pct": -65.0,
+          "worst_unrealized_pct": -32.1,
+          "avg_cash_frac": 0.03,
+          "buys": 175,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 34.401,
+          "mwr_pct": 55.4,
+          "edge_vs_dca_pct": -2.36,
+          "max_drawdown_pct": -64.8,
+          "worst_unrealized_pct": -24.3,
+          "avg_cash_frac": 0.07,
+          "buys": 35,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 24.977,
+          "mwr_pct": 50.25,
+          "edge_vs_dca_pct": -7.52,
+          "max_drawdown_pct": -64.5,
+          "worst_unrealized_pct": -22.6,
+          "avg_cash_frac": 0.11,
+          "buys": 13,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 23.019,
+          "mwr_pct": 48.95,
+          "edge_vs_dca_pct": -8.82,
+          "max_drawdown_pct": -63.9,
+          "worst_unrealized_pct": -30.8,
+          "avg_cash_frac": 0.09,
+          "buys": 184,
+          "sells": 29
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 37.162,
+          "mwr_pct": 56.66,
+          "edge_vs_dca_pct": -1.11,
+          "max_drawdown_pct": -64.9,
+          "worst_unrealized_pct": -30.8,
+          "avg_cash_frac": 0.04,
+          "buys": 184,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 25.63,
+          "mwr_pct": 50.66,
+          "edge_vs_dca_pct": -7.11,
+          "max_drawdown_pct": -64.1,
+          "worst_unrealized_pct": -30.8,
+          "avg_cash_frac": 0.09,
+          "buys": 206,
+          "sells": 49
+        }
+      ]
+    },
+    {
+      "bucket": "成长",
+      "name": "英伟达",
+      "code": "NVDA",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 84.801,
+          "mwr_pct": 66.59,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -66.0,
+          "worst_unrealized_pct": -9.9,
+          "avg_cash_frac": 0.0,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 79.737,
+          "mwr_pct": 65.6,
+          "edge_vs_dca_pct": -0.99,
+          "max_drawdown_pct": -65.9,
+          "worst_unrealized_pct": -8.0,
+          "avg_cash_frac": 0.02,
+          "buys": 182,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 72.142,
+          "mwr_pct": 64.0,
+          "edge_vs_dca_pct": -2.59,
+          "max_drawdown_pct": -65.7,
+          "worst_unrealized_pct": -5.1,
+          "avg_cash_frac": 0.06,
+          "buys": 34,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 63.437,
+          "mwr_pct": 61.96,
+          "edge_vs_dca_pct": -4.62,
+          "max_drawdown_pct": -65.6,
+          "worst_unrealized_pct": -3.5,
+          "avg_cash_frac": 0.17,
+          "buys": 8,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 48.418,
+          "mwr_pct": 57.73,
+          "edge_vs_dca_pct": -8.86,
+          "max_drawdown_pct": -65.2,
+          "worst_unrealized_pct": -7.0,
+          "avg_cash_frac": 0.13,
+          "buys": 194,
+          "sells": 41
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 78.227,
+          "mwr_pct": 65.29,
+          "edge_vs_dca_pct": -1.29,
+          "max_drawdown_pct": -65.9,
+          "worst_unrealized_pct": -8.3,
+          "avg_cash_frac": 0.02,
+          "buys": 194,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 52.362,
+          "mwr_pct": 58.95,
+          "edge_vs_dca_pct": -7.64,
+          "max_drawdown_pct": -65.2,
+          "worst_unrealized_pct": -9.0,
+          "avg_cash_frac": 0.12,
+          "buys": 230,
+          "sells": 65
+        }
+      ]
+    },
+    {
+      "bucket": "成长",
+      "name": "美光",
+      "code": "MU",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 23.24,
+          "mwr_pct": 46.55,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -56.5,
+          "worst_unrealized_pct": -59.4,
+          "avg_cash_frac": 0.0,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 21.051,
+          "mwr_pct": 45.07,
+          "edge_vs_dca_pct": -1.48,
+          "max_drawdown_pct": -56.1,
+          "worst_unrealized_pct": -45.6,
+          "avg_cash_frac": 0.08,
+          "buys": 180,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 17.768,
+          "mwr_pct": 42.55,
+          "edge_vs_dca_pct": -3.99,
+          "max_drawdown_pct": -55.3,
+          "worst_unrealized_pct": -25.2,
+          "avg_cash_frac": 0.2,
+          "buys": 32,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 15.727,
+          "mwr_pct": 40.75,
+          "edge_vs_dca_pct": -5.79,
+          "max_drawdown_pct": -54.1,
+          "worst_unrealized_pct": -23.5,
+          "avg_cash_frac": 0.26,
+          "buys": 12,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 14.527,
+          "mwr_pct": 39.58,
+          "edge_vs_dca_pct": -6.96,
+          "max_drawdown_pct": -54.2,
+          "worst_unrealized_pct": -41.7,
+          "avg_cash_frac": 0.15,
+          "buys": 188,
+          "sells": 28
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 22.109,
+          "mwr_pct": 45.8,
+          "edge_vs_dca_pct": -0.75,
+          "max_drawdown_pct": -56.1,
+          "worst_unrealized_pct": -42.3,
+          "avg_cash_frac": 0.08,
+          "buys": 186,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 14.416,
+          "mwr_pct": 39.47,
+          "edge_vs_dca_pct": -7.07,
+          "max_drawdown_pct": -54.8,
+          "worst_unrealized_pct": -42.3,
+          "avg_cash_frac": 0.14,
+          "buys": 207,
+          "sells": 40
+        }
+      ]
+    },
+    {
+      "bucket": "指数",
+      "name": "沪深300ETF",
+      "code": "510300",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 1.454,
+          "mwr_pct": 5.9,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -47.5,
+          "worst_unrealized_pct": -7.0,
+          "avg_cash_frac": 0.0,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 1.405,
+          "mwr_pct": 5.38,
+          "edge_vs_dca_pct": -0.52,
+          "max_drawdown_pct": -45.8,
+          "worst_unrealized_pct": -12.0,
+          "avg_cash_frac": 0.08,
+          "buys": 159,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 1.333,
+          "mwr_pct": 4.56,
+          "edge_vs_dca_pct": -1.34,
+          "max_drawdown_pct": -42.6,
+          "worst_unrealized_pct": -19.5,
+          "avg_cash_frac": 0.22,
+          "buys": 11,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 1.296,
+          "mwr_pct": 4.12,
+          "edge_vs_dca_pct": -1.78,
+          "max_drawdown_pct": -30.6,
+          "worst_unrealized_pct": -33.6,
+          "avg_cash_frac": 0.34,
+          "buys": 4,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 1.391,
+          "mwr_pct": 5.22,
+          "edge_vs_dca_pct": -0.68,
+          "max_drawdown_pct": -43.6,
+          "worst_unrealized_pct": -15.8,
+          "avg_cash_frac": 0.14,
+          "buys": 162,
+          "sells": 8
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 1.419,
+          "mwr_pct": 5.53,
+          "edge_vs_dca_pct": -0.37,
+          "max_drawdown_pct": -45.9,
+          "worst_unrealized_pct": -10.5,
+          "avg_cash_frac": 0.08,
+          "buys": 162,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 1.467,
+          "mwr_pct": 6.04,
+          "edge_vs_dca_pct": 0.14,
+          "max_drawdown_pct": -44.4,
+          "worst_unrealized_pct": -13.9,
+          "avg_cash_frac": 0.11,
+          "buys": 184,
+          "sells": 18
+        }
+      ]
+    },
+    {
+      "bucket": "指数",
+      "name": "纳指ETF广发",
+      "code": "159941",
+      "span_years": 11.1,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 3.343,
+          "mwr_pct": 20.33,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -30.5,
+          "worst_unrealized_pct": -12.3,
+          "avg_cash_frac": 0.0,
+          "buys": 134,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 3.231,
+          "mwr_pct": 19.77,
+          "edge_vs_dca_pct": -0.55,
+          "max_drawdown_pct": -30.1,
+          "worst_unrealized_pct": -7.3,
+          "avg_cash_frac": 0.07,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 3.065,
+          "mwr_pct": 18.91,
+          "edge_vs_dca_pct": -1.42,
+          "max_drawdown_pct": -29.4,
+          "worst_unrealized_pct": -0.0,
+          "avg_cash_frac": 0.19,
+          "buys": 14,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 3.047,
+          "mwr_pct": 18.82,
+          "edge_vs_dca_pct": -1.51,
+          "max_drawdown_pct": -26.3,
+          "worst_unrealized_pct": -1.0,
+          "avg_cash_frac": 0.36,
+          "buys": 5,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 2.71,
+          "mwr_pct": 16.9,
+          "edge_vs_dca_pct": -3.43,
+          "max_drawdown_pct": -27.6,
+          "worst_unrealized_pct": -6.6,
+          "avg_cash_frac": 0.25,
+          "buys": 152,
+          "sells": 15
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 3.24,
+          "mwr_pct": 19.82,
+          "edge_vs_dca_pct": -0.51,
+          "max_drawdown_pct": -30.1,
+          "worst_unrealized_pct": -6.6,
+          "avg_cash_frac": 0.06,
+          "buys": 152,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 2.675,
+          "mwr_pct": 16.68,
+          "edge_vs_dca_pct": -3.64,
+          "max_drawdown_pct": -28.4,
+          "worst_unrealized_pct": -7.6,
+          "avg_cash_frac": 0.22,
+          "buys": 169,
+          "sells": 24
+        }
+      ]
+    },
+    {
+      "bucket": "指数",
+      "name": "黄金ETF华安",
+      "code": "518880",
+      "span_years": 12.3,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 2.724,
+          "mwr_pct": 15.3,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -29.3,
+          "worst_unrealized_pct": -12.5,
+          "avg_cash_frac": 0.0,
+          "buys": 148,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 2.629,
+          "mwr_pct": 14.78,
+          "edge_vs_dca_pct": -0.52,
+          "max_drawdown_pct": -29.2,
+          "worst_unrealized_pct": -10.4,
+          "avg_cash_frac": 0.09,
+          "buys": 157,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 2.487,
+          "mwr_pct": 13.96,
+          "edge_vs_dca_pct": -1.34,
+          "max_drawdown_pct": -29.0,
+          "worst_unrealized_pct": -7.1,
+          "avg_cash_frac": 0.23,
+          "buys": 9,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 2.082,
+          "mwr_pct": 11.33,
+          "edge_vs_dca_pct": -3.97,
+          "max_drawdown_pct": -24.9,
+          "worst_unrealized_pct": 0.0,
+          "avg_cash_frac": 0.62,
+          "buys": 2,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 2.165,
+          "mwr_pct": 11.92,
+          "edge_vs_dca_pct": -3.39,
+          "max_drawdown_pct": -17.7,
+          "worst_unrealized_pct": -10.6,
+          "avg_cash_frac": 0.22,
+          "buys": 160,
+          "sells": 8
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 2.598,
+          "mwr_pct": 14.61,
+          "edge_vs_dca_pct": -0.7,
+          "max_drawdown_pct": -29.2,
+          "worst_unrealized_pct": -10.6,
+          "avg_cash_frac": 0.09,
+          "buys": 160,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 2.068,
+          "mwr_pct": 11.24,
+          "edge_vs_dca_pct": -4.07,
+          "max_drawdown_pct": -27.0,
+          "worst_unrealized_pct": -11.2,
+          "avg_cash_frac": 0.18,
+          "buys": 175,
+          "sells": 14
+        }
+      ]
+    },
+    {
+      "bucket": "指数",
+      "name": "纳指100ETF",
+      "code": "QQQM",
+      "span_years": 5.9,
+      "rows": [
+        {
+          "strategy": "A 无脑定投",
+          "multiple": 1.798,
+          "mwr_pct": 19.72,
+          "edge_vs_dca_pct": 0.0,
+          "max_drawdown_pct": -21.1,
+          "worst_unrealized_pct": -21.3,
+          "avg_cash_frac": 0.0,
+          "buys": 71,
+          "sells": 0
+        },
+        {
+          "strategy": "B 定投+回撤加仓(-10%)",
+          "multiple": 1.79,
+          "mwr_pct": 19.57,
+          "edge_vs_dca_pct": -0.15,
+          "max_drawdown_pct": -20.7,
+          "worst_unrealized_pct": -17.7,
+          "avg_cash_frac": 0.1,
+          "buys": 78,
+          "sells": 0
+        },
+        {
+          "strategy": "C 纯等回撤(-10%)",
+          "multiple": 1.778,
+          "mwr_pct": 19.34,
+          "edge_vs_dca_pct": -0.39,
+          "max_drawdown_pct": -19.9,
+          "worst_unrealized_pct": -12.3,
+          "avg_cash_frac": 0.26,
+          "buys": 7,
+          "sells": 0
+        },
+        {
+          "strategy": "D 纯等回撤(-20%)",
+          "multiple": 1.712,
+          "mwr_pct": 18.06,
+          "edge_vs_dca_pct": -1.67,
+          "max_drawdown_pct": -18.6,
+          "worst_unrealized_pct": -13.2,
+          "avg_cash_frac": 0.46,
+          "buys": 2,
+          "sells": 0
+        },
+        {
+          "strategy": "E 半底仓+机动仓做T(-8%/+8%)",
+          "multiple": 1.593,
+          "mwr_pct": 15.62,
+          "edge_vs_dca_pct": -4.1,
+          "max_drawdown_pct": -17.9,
+          "worst_unrealized_pct": -18.6,
+          "avg_cash_frac": 0.31,
+          "buys": 79,
+          "sells": 5
+        },
+        {
+          "strategy": "F 半底仓+机动仓只买不卖(-8%)",
+          "multiple": 1.76,
+          "mwr_pct": 19.0,
+          "edge_vs_dca_pct": -0.73,
+          "max_drawdown_pct": -20.7,
+          "worst_unrealized_pct": -17.5,
+          "avg_cash_frac": 0.13,
+          "buys": 79,
+          "sells": 0
+        },
+        {
+          "strategy": "G 半底仓+机动仓做T(-5%/+5%)",
+          "multiple": 1.622,
+          "mwr_pct": 16.22,
+          "edge_vs_dca_pct": -3.5,
+          "max_drawdown_pct": -18.1,
+          "worst_unrealized_pct": -16.7,
+          "avg_cash_frac": 0.25,
+          "buys": 96,
+          "sells": 12
+        }
+      ]
+    }
+  ],
+  "data_notes": [
+    "英伟达(NVDA) 3096 根 2014-05-05~2026-08-26 (12.3年)；还原拆股 2 次[2021-07-20 1:4, 2024-06-10 1:10]"
+  ],
+  "failures": [
+    "特斯拉(TSLA): HTTPSConnectionPool(host='finance.sina.com.cn', port=443): Max retries exceeded with url: /us_stock/"
+  ]
+}
