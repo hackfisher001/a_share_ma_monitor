@@ -1,6 +1,6 @@
 # A股 30 日均线监控助手
 
-监控 `watchlist.yaml` 里的 A 股。当**现价相对 30 日均线偏离 ≤ 0.5%**（可配置）时，通过 **飞书群机器人** 发送买入提醒卡片。同日同票只提醒一次。
+监控 `watchlist.yaml` 里的 A 股、美股与 ETF。默认进入“行动模式”：只有做 T 低吸/高抛这类需要你处理的信号才即时推送；MA30、回撤和短期涨跌压缩进日报，避免让飞书变成 K 线连续剧。
 
 可用 **GitHub Actions** 定时跑，也可部署到 **阿里云轻量/ECS** 用 crontab 跑（推荐长期方案）。
 
@@ -47,9 +47,11 @@ python -m src.main                 # 正式推送
 
 | 类型 | 触发 | 定位 |
 |---|---|---|
-| 走势提示 · MA30 | 现价距 MA30 在 ±`touch_pct` 以内 | 信息，不是行动建议 |
-| 回撤观察 · N% | 距 252 日高点跨过 `drawdown_levels` 的某一档 | 信息，不是行动建议 |
-| 做T · 低吸 / 高抛 | 见下 | 行动建议，只动机动仓 |
+| 走势提示 · MA30 | 现价距 MA30 在 ±`touch_pct` 以内 | 默认收进日报 |
+| 回撤观察 · N% | 距 252 日高点跨过 `drawdown_levels` 的某一档 | 默认收进日报 |
+| 做T · 低吸 / 高抛 | 见下 | 即时行动清单，只动机动仓 |
+
+`watchlist.yaml` 中 `notifications.action_only: true` 是默认值。改成 `false` 才会恢复 MA30、回撤和异常回撤的即时推送。
 
 前两类**只回答「现在贵还是便宜」**，不代表该推迟买入。12.3 年回测（`docs/定投与做T回测.md`，含 2015、2018、2022 三轮下跌）显示「攒钱等回撤」在 13 个标的上 **0 胜**，等 -10% 平均每年少赚 1.71%，等 -20% 少赚 3.56%。工资到账就买是最优解。
 
@@ -74,18 +76,30 @@ python -m src.main                 # 正式推送
 
 机动仓状态（笔数、均价、是否武装）记在 `data/alert_state.json` 的 `t_sleeve` 里，跨次运行保留。它是账本而不是去重标记，所以 `--force` 不会重放做 T 提醒；`--dry-run` 也不会写入。
 
+### 记录实际行为
+
+信号只是待办，不代表你已执行。每次成交后记录一笔，系统才会推进做 T 机动仓状态、关闭对应的“待你确认”事项，并在日报显示最近行为：
+
+```bash
+python -m src.main --record-trade BUY 600036 100 42.35 --market cn
+python -m src.main --record-trade SELL TSLA 5 315.20 --market us
+```
+
+记录保存在本地 `data/trades.csv`，不会提交到 Git。数量和成交价必须填真实值；当前版本不会替你下单。
+
 ## 每日股价日报
 
 交易日自动推送飞书（也可手动）：
 
 ```bash
-python -m src.main --digest --dry-run          # 预览全部市场
+python -m src.main --digest --dry-run          # 预览：行动清单 + 市场压缩摘要
 python -m src.main --digest --market cn,hk     # 仅 A/H
 python -m src.main --digest --market us        # 仅美股
 python -m src.main --digest                    # 正式发送
+python -m src.main --digest --full-report      # 发送完整标的表（需要时再看）
 ```
 
-每只股票包含：**现价、MA30、1日 / 5日 / 1周 / 1月 / 半年 / 1年** 涨跌幅。
+默认日报只有三张小卡：**待确认行动、市场最强两只、市场最弱两只**。全量表可加 `--full-report` 查看；周报、月报仍保留完整表与 LLM 点评。
 A/H 默认 **16:10** 推送；美股默认北京时间 **次日 06:30** 推送。
 
 ## GitHub Actions

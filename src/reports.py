@@ -359,6 +359,28 @@ def _market_header(kind: str, bundles: list[QuoteBundle]) -> str:
     )
 
 
+def _compact_market_markdown(bundles: list[QuoteBundle]) -> str:
+    """A phone-sized daily scan: only the biggest changes make the cut."""
+    ranked: list[tuple[QuoteBundle, float]] = []
+    for bundle in bundles:
+        change = change_by_trading_days(bundle.hist, bundle.price, 1)
+        if change is not None:
+            ranked.append((bundle, change))
+    if not ranked:
+        return "行情摘要：数据不足，今天不强行讲段子。"
+    ranked.sort(key=lambda row: row[1], reverse=True)
+    winners = ranked[:2]
+    losers = list(reversed(ranked[-2:]))
+    fmt = lambda rows: "；".join(
+        f"{b.name} {value:+.2f}%" for b, value in rows
+    )
+    return (
+        f"**强势：** {fmt(winners)}\n"
+        f"**偏弱：** {fmt(losers)}\n"
+        "其余标的今日没有挤进重点名单，允许它们安静一天。"
+    )
+
+
 def _sector_board(bundles: list[QuoteBundle], kind: str) -> list[str]:
     """Relative strength board for CN ETFs."""
     etfs = [b for b in bundles if b.market == "cn" and b.theme != CN_STOCK_THEME]
@@ -506,6 +528,8 @@ def run_report(
     *,
     dry_run: bool = False,
     markets: list[str] | None = None,
+    compact: bool = False,
+    action_markdown: str | None = None,
 ) -> int:
     """kind: daily | weekly | monthly — market data cards + one DeepSeek summary."""
     kind = (kind or "daily").strip().lower()
@@ -519,6 +543,15 @@ def run_report(
     sent = 0
     fail_markets = 0
 
+    if action_markdown:
+        title = "今日行动清单"
+        if dry_run:
+            log.info("[dry-run] %s\n%s", title, action_markdown)
+        else:
+            channel = send_alert(title=title, markdown=action_markdown)
+            log.info("已通过 %s 发送 %s", channel, title)
+        sent += 1
+
     for market in targets:
         bundles, errors = collect_bundles(stocks, market_filter=market)
         if not bundles and not errors:
@@ -529,6 +562,18 @@ def run_report(
         all_bundles.extend(bundles)
 
         market_label = MARKET_TITLE.get(market, market.upper()).replace("日报", "")
+        if compact and kind == "daily":
+            title = f"持仓日报 · {market_label}压缩版"
+            markdown = _compact_market_markdown(bundles)
+            if errors:
+                markdown += "\n**数据异常：** " + ", ".join(errors)
+            if dry_run:
+                log.info("[dry-run] %s\n%s", title, markdown)
+            else:
+                channel = send_alert(title=title, markdown=markdown)
+                log.info("已通过 %s 发送 %s", channel, title)
+            sent += 1
+            continue
         groups: list[tuple[str, list[QuoteBundle], str | None]]
         if market == "cn":
             stocks, etfs = _split_cn_bundles(bundles)
@@ -572,7 +617,7 @@ def run_report(
                 log.info("已通过 %s 发送 %s（%d 只 / %d 表）", channel, title, len(group), len(tables))
             sent += 1
 
-    if all_bundles:
+    if all_bundles and not (compact and kind == "daily"):
         comment = _llm_comment(kind, all_bundles)
         if comment:
             title = f"{REPORT_TITLES[kind]} · DeepSeek 点评"

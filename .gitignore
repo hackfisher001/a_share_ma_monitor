@@ -6,5 +6,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 data/alert_state.json
+data/trades.csv
 *.log
 .DS_Store

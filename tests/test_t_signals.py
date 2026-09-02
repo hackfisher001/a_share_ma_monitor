@@ -59,6 +59,16 @@ def test_dip_below_threshold_fires_a_buy_and_disarms():
     assert abs(sleeve.avg_price - 94.0) < 1e-9
 
 
+def test_preview_signal_does_not_assume_trade_was_executed():
+    sleeve = TSleeve()
+
+    signal = evaluate_t(_snap(94.0), sleeve, CFG, commit=False)
+
+    assert isinstance(signal, TBuySignal)
+    assert sleeve.holding is False
+    assert sleeve.adds == 0
+
+
 def test_further_slide_does_not_fire_again_until_price_recovers():
     sleeve = TSleeve()
     evaluate_t(_snap(94.0), sleeve, CFG)

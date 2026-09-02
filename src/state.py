@@ -26,6 +26,7 @@ class AlertState:
             "cooldown": {},
             "drawdown_fired": {},
             "t_sleeve": {},
+            "pending_actions": {},
         }
         self._load()
 
@@ -51,12 +52,18 @@ class AlertState:
             for k, v in (raw.get("t_sleeve") or {}).items()
             if isinstance(v, dict)
         }
+        pending = {
+            str(k): dict(v)
+            for k, v in (raw.get("pending_actions") or {}).items()
+            if isinstance(v, dict)
+        }
         self._data = {
             "date": _today(),
             "alerted": alerted,
             "cooldown": cooldown,
             "drawdown_fired": drawdown_fired,
             "t_sleeve": sleeves,
+            "pending_actions": pending,
         }
 
     def save(self) -> None:
@@ -115,3 +122,30 @@ class AlertState:
         self._data["t_sleeve"][str(key)] = dict(payload)
         self._data["date"] = _today()
         self.save()
+
+    def save_pending_action(self, key: str, payload: dict) -> None:
+        """Remember a suggested action until the owner explicitly records it."""
+        self._data["pending_actions"][str(key)] = dict(payload)
+        self._data["date"] = _today()
+        self.save()
+
+    def pending_actions(self) -> list[dict]:
+        return [dict(v) for v in self._data["pending_actions"].values()]
+
+    def resolve_pending_actions(self, market: str, code: str, side: str) -> int:
+        """Mark matching reminders as executed after an explicit journal entry."""
+        market, code, side = market.lower(), code.upper(), side.upper()
+        removed = []
+        for key, action in self._data["pending_actions"].items():
+            if (
+                str(action.get("market", "")).lower() == market
+                and str(action.get("code", "")).upper() == code
+                and str(action.get("side", "")).upper() == side
+            ):
+                removed.append(key)
+        for key in removed:
+            del self._data["pending_actions"][key]
+        if removed:
+            self._data["date"] = _today()
+            self.save()
+        return len(removed)

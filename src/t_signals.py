@@ -191,12 +191,13 @@ def evaluate_t(
     config: TConfig,
     *,
     min_history: int = MIN_HISTORY_FOR_T,
+    commit: bool = True,
 ) -> TSignal | None:
     """Advance the sleeve one bar; returns a signal when the state changes.
 
-    Mutates `sleeve`, mirroring the backtest loop order: re-arm, then add, then
-    take profit. An add cannot be followed by a sale on the same bar because a
-    fresh add always leaves the sleeve at zero gain.
+    By default mutates `sleeve`, mirroring the backtest loop order: re-arm, then
+    add, then take profit.  Live notifications use ``commit=False``: a signal is
+    only committed when its real trade is recorded in the local journal.
     """
     if snapshot.high_252 <= 0 or snapshot.history_rows < min_history:
         return None
@@ -210,19 +211,21 @@ def evaluate_t(
 
     if sleeve.armed and dd <= -config.buy_drawdown_pct and sleeve.adds < config.max_adds:
         prev_avg = sleeve.avg_price
-        sleeve.add(snapshot.price, as_of=snapshot.as_of)
-        return TBuySignal(
+        signal = TBuySignal(
             code=snapshot.code,
             name=snapshot.name,
             price=snapshot.price,
             high_252=snapshot.high_252,
             drawdown_pct=dd,
-            add_index=sleeve.adds,
+            add_index=sleeve.adds + 1,
             max_adds=config.max_adds,
             prev_avg_price=prev_avg,
             config=config,
             as_of=snapshot.as_of,
         )
+        if commit:
+            sleeve.add(snapshot.price, as_of=snapshot.as_of)
+        return signal
 
     if sleeve.holding and sleeve.gain_pct(snapshot.price) >= config.sell_bounce_pct:
         signal = TSellSignal(
@@ -236,7 +239,8 @@ def evaluate_t(
             config=config,
             as_of=snapshot.as_of,
         )
-        sleeve.close(as_of=snapshot.as_of)
+        if commit:
+            sleeve.close(as_of=snapshot.as_of)
         return signal
 
     return None

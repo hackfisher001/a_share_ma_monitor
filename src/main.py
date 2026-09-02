@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.fetch_quotes import QuoteBundle, build_bundle
+from src.action_digest import action_payload, action_summary_markdown, pending_key
 from src.notify import send_alert, send_test_ping
 from src.price_context import (
     RECENT_PERCENTILE,
@@ -34,6 +35,7 @@ from src.signals import (
 )
 from src.state import AlertState
 from src.t_signals import TConfig, TSleeve, evaluate_t, sleeve_status_line
+from src.trades import TradeLedger
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,6 +55,7 @@ class ScanConfig:
     recent_pullback_percentile: float
     recent_pullback_cooldown_days: int
     swing_t: TConfig
+    action_only: bool = True
 
 
 def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
@@ -77,6 +80,7 @@ def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
         ),
         recent_pullback_cooldown_days=int(data.get("recent_pullback_cooldown_days", 7)),
         swing_t=TConfig.from_dict(data.get("swing_t")),
+        action_only=bool((data.get("notifications") or {}).get("action_only", True)),
     )
     stocks = data.get("stocks") or []
     if not stocks:
@@ -160,18 +164,52 @@ def _run_swing_t(
     sleeve = TSleeve.from_dict(state.t_sleeve(sleeve_key))
     before = sleeve.to_dict()
 
-    signal = evaluate_t(snap, sleeve, config.swing_t)
+    signal = evaluate_t(snap, sleeve, config.swing_t, commit=False)
     sent = 0
     if signal is not None:
+        side = "BUY" if signal.title.endswith("低吸") else "SELL"
+        market = str(item.get("market") or "cn").lower()
+        key = pending_key(market, snap.code, side)
+        already_pending = any(
+            pending_key(
+                str(action.get("market") or ""),
+                str(action.get("code") or ""),
+                str(action.get("side") or ""),
+            )
+            == key
+            for action in state.pending_actions()
+        )
+        if already_pending:
+            log.info("  已有待确认%s，跳过重复提醒", "买入" if side == "BUY" else "卖出")
+            return 0
+        prompt = (
+            f"\n\n👉 **现在要做：{'买入' if side == 'BUY' else '卖出'}机动仓**"
+            f"（底仓不动）。执行后记录："
+            f"`python -m src.main --record-trade {side} {snap.code} 数量 成交价 --market {market}`\n"
+            "不记录就算没做，系统会继续把它放在待办里。"
+        )
         channel = _dispatch_alert(
             title=signal.title,
-            headline=signal.message,
+            headline=signal.message + prompt,
             ctx=ctx,
             dry_run=dry_run,
         )
         if not dry_run:
             log.info("已通过 %s 发送%s: %s", channel, signal.title, state_key)
         sent = 1
+        if not dry_run:
+            state.save_pending_action(
+                key,
+                action_payload(
+                    market=market,
+                    code=snap.code,
+                    name=snap.name,
+                    side=side,
+                    price=snap.price,
+                    text=signal.title,
+                    kind="t_buy" if side == "BUY" else "t_sell",
+                ),
+            )
 
     after = sleeve.to_dict()
     if after != before:
@@ -235,7 +273,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 )
 
             ma_signal = is_touching_ma30(snap, config.touch_pct)
-            if ma_signal is not None:
+            if ma_signal is not None and not config.action_only:
                 if force or not state.already_alerted(state_key):
                     channel = _dispatch_alert(
                         title="走势提示 · MA30",
@@ -258,7 +296,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 dd_signals = crossed_drawdown_levels(
                     snap, drawdown_levels_for(item, config), already_fired=already
                 )
-                for dd_signal in dd_signals:
+                for dd_signal in (dd_signals if not config.action_only else []):
                     level = dd_signal.threshold_pct
                     title = (
                         f"回撤观察 · 超过{level:g}%"
@@ -288,7 +326,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                     percentile=config.recent_pullback_percentile,
                 )
                 cooldown_key = f"recent:{state_key}"
-                if hit and (force or not state.in_cooldown(cooldown_key, config.recent_pullback_cooldown_days)):
+                if hit and not config.action_only and (force or not state.in_cooldown(cooldown_key, config.recent_pullback_cooldown_days)):
                     headline = (
                         f"**{snap.name}({snap.code})** 出现近期异常回撤\n"
                         f"现价 **{snap.price:.2f}**　日线截至 {snap.as_of}"
@@ -337,12 +375,58 @@ def main() -> None:
         default="all",
         help="报告市场过滤：all / cn / hk / us（可逗号分隔）",
     )
+    parser.add_argument(
+        "--full-report",
+        action="store_true",
+        help="日报发送完整标的表；默认只发送行动清单与强弱摘要",
+    )
+    parser.add_argument(
+        "--record-trade",
+        nargs=4,
+        metavar=("BUY|SELL", "CODE", "QUANTITY", "PRICE"),
+        help="记录一笔已执行交易，并关闭对应待确认提醒",
+    )
     args = parser.parse_args()
 
     if args.notify_test:
         load_dotenv(ROOT / ".env")
         channel = send_test_ping()
         log.info("测试消息已发送（%s）", channel)
+        raise SystemExit(0)
+
+    if args.record_trade:
+        side, code, quantity_raw, price_raw = args.record_trade
+        market = args.market.split(",", 1)[0].strip().lower()
+        if market in {"", "all"}:
+            market = "cn" if str(code).strip().isdigit() else "us"
+        ledger = TradeLedger(ROOT / "data" / "trades.csv")
+        trade = ledger.record(
+            market=market,
+            code=code,
+            side=side,
+            quantity=float(quantity_raw),
+            price=float(price_raw),
+        )
+        state = AlertState(ROOT / os.getenv("STATE_FILE", "data/alert_state.json"))
+        matching = [
+            action
+            for action in state.pending_actions()
+            if str(action.get("market", "")).lower() == trade.market
+            and str(action.get("code", "")).upper() == trade.code
+            and str(action.get("side", "")).upper() == trade.side
+        ]
+        # The sleeve changes only here, after an explicit execution record.
+        for action in matching:
+            sleeve_key = f"t:{trade.market}:{trade.code}"
+            sleeve = TSleeve.from_dict(state.t_sleeve(sleeve_key))
+            if action.get("kind") == "t_buy":
+                sleeve.add(trade.price, as_of=trade.date)
+                state.save_t_sleeve(sleeve_key, sleeve.to_dict())
+            elif action.get("kind") == "t_sell":
+                sleeve.close(as_of=trade.date)
+                state.save_t_sleeve(sleeve_key, sleeve.to_dict())
+        resolved = state.resolve_pending_actions(trade.market, trade.code, trade.side)
+        log.info("已记录 %s %s %s @ %.4f；关闭 %d 条待确认提醒", trade.side, trade.code, trade.quantity, trade.price, resolved)
         raise SystemExit(0)
 
     report_kind = args.report
@@ -355,12 +439,18 @@ def main() -> None:
         markets = None
         if args.market and args.market.lower() != "all":
             markets = [m.strip().lower() for m in args.market.split(",") if m.strip()]
+        state_path = ROOT / os.getenv("STATE_FILE", "data/alert_state.json")
+        action_md = action_summary_markdown(
+            AlertState(state_path), TradeLedger(ROOT / "data" / "trades.csv")
+        )
         raise SystemExit(
             run_report(
                 stocks,
                 kind=report_kind,
                 dry_run=args.dry_run,
                 markets=markets,
+                compact=(report_kind == "daily" and not args.full_report),
+                action_markdown=action_md if report_kind == "daily" else None,
             )
         )
 
