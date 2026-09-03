@@ -48,9 +48,6 @@ echo "*/30 0-3 * * 2-6 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.
 # 心跳：每天固定说一句话，让「没消息」和「挂了」能区分开；同时备份状态文件
 echo "0 21 * * * cd ${ROOT} && ./scripts/run_once.sh --heartbeat >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 
-# 发薪日提醒：每天判一次，只有到账日才会真的推
-echo "30 9 * * * cd ${ROOT} && ./scripts/run_once.sh --payday >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
-
 # A股日报：收盘后（含 DeepSeek 点评）
 echo "10 16 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh --report daily --market cn >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 
@@ -72,7 +69,6 @@ echo
 echo "飞书连通测试： ./scripts/run_once.sh --notify-test"
 echo "MA30 试跑：     ./scripts/run_once.sh --dry-run"
 echo "心跳： ./scripts/run_once.sh --heartbeat --dry-run"
-echo "发薪日：./scripts/run_once.sh --payday --dry-run"
 echo "日报： ./scripts/run_once.sh --report daily"
 echo "周报： ./scripts/run_once.sh --report weekly"
 echo "月报： ./scripts/run_once.sh --report monthly"

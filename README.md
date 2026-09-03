@@ -49,7 +49,6 @@ python -m src.main                 # 正式推送
 |---|---|---|
 | 急跌提醒 · -N% | 实时价对比**昨收**跌破 `intraday_dip.levels` 某一档 | **即时**，盘中就推 |
 | 做T · 低吸 / 高抛 | 见下 | 即时行动清单，只动机动仓 |
-| 发薪日 · 按计划买入 | 到 `payday.day`（及年终奖月） | 即时，与价格无关 |
 | 走势提示 · MA30 | 现价距 MA30 在 ±`touch_pct` 以内 | 默认收进日报 |
 | 回撤观察 · N% | 距 252 日高点跨过 `drawdown_levels` 的某一档 | 默认收进日报 |
 | 每日巡检心跳 | 每天固定一条 | 用来判断监控本身是否还活着 |
@@ -67,20 +66,6 @@ A 股与美股都支持盘中（美股行情走腾讯美股板）。`GC=F`、`BT
 ### 走势提示与回撤观察
 
 这两类**只回答「现在贵还是便宜」**，不代表该推迟买入。12.3 年回测（`docs/定投与做T回测.md`，含 2015、2018、2022 三轮下跌）显示「攒钱等回撤」在 13 个标的上 **0 胜**，等 -10% 平均每年少赚 1.71%，等 -20% 少赚 3.56%。工资到账就买是最优解。
-
-## 发薪日提醒
-
-回测里唯一被验证有效的动作，所以它按日历触发、完全不看价格：
-
-```yaml
-payday:
-  enabled: true
-  day: 10             # 工资到账日，短月自动收敛到月末
-  bonus_months: [2]   # 年终奖月份，会额外提示一次性买入
-  bonus_day: 10
-```
-
-推送内容按「距一年高点」由低到高排序，仅供分配参考，**不作为是否买入的依据**。
 
 ## 心跳与备份
 
@@ -192,7 +177,6 @@ nano watchlist.yaml
 |---|---|
 | 工作日 9:35、10-11 与 13-14 每 15 分钟、14:50、15:05 | A 股盘中巡检 |
 | 工作日 22:00-03:30 每 30 分钟 | 美股盘中巡检 |
-| 每天 9:30 | 发薪日判定（非到账日静默） |
 | 每天 21:00 | 心跳 + 状态备份 |
 | 工作日 16:10 / 次日 6:30 | A股 / 美股日报 |
 | 周日 20:00、每月 1 日 9:00 | 周报 / 月报 |
@@ -208,12 +192,11 @@ src/notify.py               # 飞书卡片推送（主）
 src/fetch_quotes.py
 src/signals.py              # MA30 / 回撤观察 / 盘中急跌
 src/t_signals.py            # 做T 低吸/高抛 + 机动仓状态
-src/payday.py               # 发薪日提醒
 src/ops.py                  # 巡检心跳 + 状态备份
 src/trades.py               # 成交流水与持仓回放
 src/action_digest.py        # 行动清单 / 持仓卡片 / 重复提醒判定
 src/state.py
-src/main.py                 # --notify-test / --dry-run / --heartbeat / --payday
+src/main.py                 # --notify-test / --dry-run / --heartbeat
 scripts/run_once.sh
 scripts/install_aliyun.sh
 .github/workflows/monitor.yml

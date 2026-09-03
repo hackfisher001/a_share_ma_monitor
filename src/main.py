@@ -28,7 +28,6 @@ from src.action_digest import (
 )
 from src.notify import send_alert, send_test_ping
 from src.ops import heartbeat_markdown, snapshot_state
-from src.payday import PaydayConfig, is_payday, payday_markdown
 from src.price_context import (
     RECENT_PERCENTILE,
     build_price_context,
@@ -423,51 +422,6 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
     return 1 if errors else 0
 
 
-def run_payday(watchlist_path: Path, dry_run: bool = False) -> int:
-    raw = yaml.safe_load(watchlist_path.read_text(encoding="utf-8")) or {}
-    config = PaydayConfig.from_dict(raw.get("payday"))
-    due, bonus = is_payday(config)
-    if not due:
-        log.info("今天不是发薪日，跳过")
-        return 0
-
-    rows: list[dict] = []
-    for item in raw.get("stocks") or []:
-        code = str(item.get("code", "")).strip()
-        if not code:
-            continue
-        try:
-            bundle = build_bundle(
-                code,
-                name=str(item.get("name") or "").strip(),
-                market=str(item.get("market") or "cn").strip().lower(),
-            )
-            ctx = build_price_context(bundle.hist, bundle.price, bundle.ma30)
-            rows.append(
-                {
-                    "name": bundle.name,
-                    "code": bundle.code,
-                    "year_dd": ctx.year_dd,
-                    "stage": ctx.stage,
-                }
-            )
-        except Exception as exc:
-            log.warning("发薪日提醒跳过 %s: %s", code, exc)
-    rows.sort(key=lambda r: (r["year_dd"] is None, r["year_dd"] or 0.0))
-
-    markdown = payday_markdown(rows, bonus=bonus)
-    if dry_run:
-        log.info("[dry-run] 发薪日提醒:\n%s", markdown)
-        return 0
-    channel = send_alert(
-        markdown=markdown,
-        title="发薪日 · 按计划买入",
-        prefer_images=False,
-    )
-    log.info("已通过 %s 发送发薪日提醒", channel)
-    return 0
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="股价监控：MA30 + 多档回撤 + 日/周/月报（DeepSeek 点评）"
@@ -484,7 +438,7 @@ def main() -> None:
     parser.add_argument(
         "--payday",
         action="store_true",
-        help="若今天是发薪日则推送买入提醒（非发薪日静默退出）",
+        help=argparse.SUPPRESS,  # 已移除，保留参数以免旧 crontab 报错
     )
     parser.add_argument(
         "--digest",
@@ -521,8 +475,8 @@ def main() -> None:
         raise SystemExit(0)
 
     if args.payday:
-        load_dotenv(ROOT / ".env")
-        raise SystemExit(run_payday(Path(args.config), dry_run=args.dry_run))
+        log.info("发薪日提醒已移除，忽略 --payday")
+        raise SystemExit(0)
 
     if args.heartbeat:
         load_dotenv(ROOT / ".env")

@@ -14,14 +14,6 @@ touch_pct: 0.5
 notifications:
   action_only: true
 
-# 发薪日提醒：回测里唯一被验证有效的动作，所以它按日历触发、不看价格。
-# day 为工资到账日；bonus_months 里的月份会额外提示年终奖一次性买入。
-payday:
-  enabled: true
-  workday: 1          # 每月第几个工作日（周一到周五）
-  bonus_months: [2]   # 年终奖月份
-  bonus_workday: 1
-
 # 盘中急跌：用实时价对比昨收，每次巡检都判一次，跌破档位立刻推。
 # 不受 action_only 屏蔽——这类提醒只在你还能下单的时候有价值。
 # 每档每天最多推一次，次日重置。
