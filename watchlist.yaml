@@ -14,6 +14,21 @@ touch_pct: 0.5
 notifications:
   action_only: true
 
+# 发薪日提醒：回测里唯一被验证有效的动作，所以它按日历触发、不看价格。
+# day 为工资到账日；bonus_months 里的月份会额外提示年终奖一次性买入。
+payday:
+  enabled: true
+  day: 10
+  bonus_months: [2]
+  bonus_day: 10
+
+# 盘中急跌：用实时价对比昨收，每次巡检都判一次，跌破档位立刻推。
+# 不受 action_only 屏蔽——这类提醒只在你还能下单的时候有价值。
+# 每档每天最多推一次，次日重置。
+intraday_dip:
+  enabled: true
+  levels: [3.0, 5.0, 8.0]
+
 # 做 T（低吸 / 高抛）：仅对个股里 swing_t: true 的标的生效。
 # 参数即回测变体 G：距 252 日高点 -5% 低吸，机动仓均价 +5% 高抛。
 # 成长股与所有 ETF 一律不开——回测中它们每年输给定投 3%~9%。
@@ -24,6 +39,10 @@ swing_t:
   rearm_pct: 4.0
   high_window: 252
   max_adds: 4
+  # 待确认提醒不会永久静音：再跌 escalate_pct 或挂满 pending_ttl_days 天就重提，
+  # 否则漏记一次会让这只票的做T彻底哑掉。
+  escalate_pct: 3.0
+  pending_ttl_days: 5
 
 # 回撤观察（信息提醒，不改变定投主仓）：
 # 现价较近一年（252 个交易日）收盘高点回撤，每跨过一档提醒一次。

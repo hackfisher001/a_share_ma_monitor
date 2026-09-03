@@ -67,7 +67,7 @@ class TradeLedger:
             writer.writerow(trade.__dict__)
         return trade
 
-    def recent(self, limit: int = 5) -> list[Trade]:
+    def all(self) -> list[Trade]:
         if not self.path.exists():
             return []
         rows: list[Trade] = []
@@ -87,4 +87,56 @@ class TradeLedger:
                     )
                 except (KeyError, TypeError, ValueError):
                     continue
-        return list(reversed(rows[-max(0, limit) :]))
+        return rows
+
+    def recent(self, limit: int = 5) -> list[Trade]:
+        return list(reversed(self.all()[-max(0, limit) :]))
+
+    def positions(self) -> dict[str, "Position"]:
+        """Replay the journal into holdings keyed by `market:code`.
+
+        Sells reduce quantity at average cost, so realised profit is separated
+        from the cost basis of what is still held. A sell larger than the
+        recorded holding is clamped rather than allowed to go negative — the
+        journal may simply have started mid-position.
+        """
+        book: dict[str, Position] = {}
+        for trade in self.all():
+            key = f"{trade.market}:{trade.code}"
+            pos = book.get(key) or Position(market=trade.market, code=trade.code)
+            if trade.side == "BUY":
+                pos.quantity += trade.quantity
+                pos.cost += trade.quantity * trade.price
+            else:
+                sold = min(trade.quantity, pos.quantity)
+                if sold > 0:
+                    unit_cost = pos.cost / pos.quantity
+                    pos.realised += sold * (trade.price - unit_cost)
+                    pos.quantity -= sold
+                    pos.cost -= sold * unit_cost
+            pos.last_date = trade.date
+            book[key] = pos
+        return book
+
+
+@dataclass
+class Position:
+    market: str
+    code: str
+    quantity: float = 0.0
+    cost: float = 0.0
+    realised: float = 0.0
+    last_date: str = ""
+
+    @property
+    def holding(self) -> bool:
+        return self.quantity > 1e-9 and self.cost > 1e-9
+
+    @property
+    def avg_price(self) -> float:
+        return self.cost / self.quantity if self.holding else 0.0
+
+    def unrealised_pct(self, price: float) -> float | None:
+        if not self.holding or price <= 0:
+            return None
+        return (price / self.avg_price - 1.0) * 100.0

@@ -18,8 +18,17 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.fetch_quotes import QuoteBundle, build_bundle
-from src.action_digest import action_payload, action_summary_markdown, pending_key
+from src.action_digest import (
+    DEFAULT_ESCALATE_PCT,
+    DEFAULT_PENDING_TTL_DAYS,
+    action_payload,
+    action_summary_markdown,
+    pending_key,
+    should_realert,
+)
 from src.notify import send_alert, send_test_ping
+from src.ops import heartbeat_markdown, snapshot_state
+from src.payday import PaydayConfig, is_payday, payday_markdown
 from src.price_context import (
     RECENT_PERCENTILE,
     build_price_context,
@@ -29,8 +38,10 @@ from src.price_context import (
 from src.reports import run_report
 from src.signals import (
     DEFAULT_DRAWDOWN_LEVELS,
+    DEFAULT_INTRADAY_DIP_LEVELS,
     QuoteSnapshot,
     crossed_drawdown_levels,
+    crossed_intraday_dip_levels,
     is_touching_ma30,
 )
 from src.state import AlertState
@@ -56,6 +67,19 @@ class ScanConfig:
     recent_pullback_cooldown_days: int
     swing_t: TConfig
     action_only: bool = True
+    # Same-session slide bands. Deliberately exempt from action_only: they are
+    # only useful while you can still trade on them.
+    intraday_dip_levels: tuple[float, ...] = DEFAULT_INTRADAY_DIP_LEVELS
+    pending_escalate_pct: float = DEFAULT_ESCALATE_PCT
+    pending_ttl_days: int = DEFAULT_PENDING_TTL_DAYS
+
+
+def _intraday_levels(raw: dict | None) -> tuple[float, ...]:
+    raw = raw or {}
+    if raw.get("enabled") is False:
+        return ()
+    levels = raw.get("levels") or DEFAULT_INTRADAY_DIP_LEVELS
+    return tuple(sorted({abs(float(x)) for x in levels}))
 
 
 def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
@@ -81,6 +105,13 @@ def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
         recent_pullback_cooldown_days=int(data.get("recent_pullback_cooldown_days", 7)),
         swing_t=TConfig.from_dict(data.get("swing_t")),
         action_only=bool((data.get("notifications") or {}).get("action_only", True)),
+        intraday_dip_levels=_intraday_levels(data.get("intraday_dip")),
+        pending_escalate_pct=abs(
+            float((data.get("swing_t") or {}).get("escalate_pct", DEFAULT_ESCALATE_PCT))
+        ),
+        pending_ttl_days=int(
+            (data.get("swing_t") or {}).get("pending_ttl_days", DEFAULT_PENDING_TTL_DAYS)
+        ),
     )
     stocks = data.get("stocks") or []
     if not stocks:
@@ -97,6 +128,7 @@ def _snapshot_from_bundle(bundle: QuoteBundle) -> QuoteSnapshot:
         as_of=bundle.as_of,
         history_rows=len(bundle.hist),
         high_252=bundle.high_252,
+        live=bundle.live,
     )
 
 
@@ -170,19 +202,19 @@ def _run_swing_t(
         side = "BUY" if signal.title.endswith("低吸") else "SELL"
         market = str(item.get("market") or "cn").lower()
         key = pending_key(market, snap.code, side)
-        already_pending = any(
-            pending_key(
-                str(action.get("market") or ""),
-                str(action.get("code") or ""),
-                str(action.get("side") or ""),
-            )
-            == key
-            for action in state.pending_actions()
+        repeat, why = should_realert(
+            state.pending_action(key),
+            price=snap.price,
+            side=side,
+            escalate_pct=config.pending_escalate_pct,
+            ttl_days=config.pending_ttl_days,
         )
-        if already_pending:
+        if not repeat:
             log.info("  已有待确认%s，跳过重复提醒", "买入" if side == "BUY" else "卖出")
             return 0
+        escalation = f"\n\n⚠️ **重复提醒：** {why}" if why else ""
         prompt = (
+            f"{escalation}"
             f"\n\n👉 **现在要做：{'买入' if side == 'BUY' else '卖出'}机动仓**"
             f"（底仓不动）。执行后记录："
             f"`python -m src.main --record-trade {side} {snap.code} 数量 成交价 --market {market}`\n"
@@ -244,6 +276,13 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
             bundle = build_bundle(code, name=name, market=market)
             snap = _snapshot_from_bundle(bundle)
             ctx = build_price_context(bundle.hist, bundle.price, bundle.ma30)
+            # The live feed's own 昨收 beats deriving it from history, which can
+            # have gaps that would fake a slide.
+            snap.change_pct = (
+                (bundle.price / bundle.prev_close - 1.0) * 100.0
+                if bundle.prev_close and bundle.prev_close > 0
+                else ctx.day1
+            )
             drawdown = (
                 (snap.price / snap.high_252 - 1) * 100 if snap.high_252 > 0 else 0.0
             )
@@ -258,6 +297,29 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 drawdown,
                 ctx.stage,
             )
+
+            # A same-session slide is the one thing that must interrupt you, so
+            # it runs ahead of everything else and ignores action_only.
+            if config.intraday_dip_levels:
+                already_dip = () if force else state.intraday_fired_levels(state_key)
+                for dip in crossed_intraday_dip_levels(
+                    snap, config.intraday_dip_levels, already_fired=already_dip
+                ):
+                    channel = _dispatch_alert(
+                        title=dip.title,
+                        headline=dip.message,
+                        ctx=ctx,
+                        dry_run=dry_run,
+                    )
+                    if not dry_run:
+                        log.info(
+                            "已通过 %s 发送急跌提醒: %s -%g%%",
+                            channel,
+                            state_key,
+                            dip.threshold_pct,
+                        )
+                        state.mark_intraday_level(state_key, dip.threshold_pct)
+                    alerts += 1
 
             # Swing-T is opt-in per symbol; the sleeve is bookkeeping, so --force
             # must not replay it or the recorded average cost would drift.
@@ -349,7 +411,56 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
             log.exception("处理 %s 失败: %s", state_key, exc)
 
     log.info("完成：触发 %d 条，失败 %d 只", alerts, errors)
-    return 1 if errors and alerts == 0 else 0
+    if not dry_run:
+        state.record_scan_health(checked=len(stocks), errors=errors, alerts=alerts)
+    # Any fetch failure is a real failure: a partially blind scan used to exit 0
+    # simply because some other symbol happened to alert.
+    return 1 if errors else 0
+
+
+def run_payday(watchlist_path: Path, dry_run: bool = False) -> int:
+    raw = yaml.safe_load(watchlist_path.read_text(encoding="utf-8")) or {}
+    config = PaydayConfig.from_dict(raw.get("payday"))
+    due, bonus = is_payday(config)
+    if not due:
+        log.info("今天不是发薪日，跳过")
+        return 0
+
+    rows: list[dict] = []
+    for item in raw.get("stocks") or []:
+        code = str(item.get("code", "")).strip()
+        if not code:
+            continue
+        try:
+            bundle = build_bundle(
+                code,
+                name=str(item.get("name") or "").strip(),
+                market=str(item.get("market") or "cn").strip().lower(),
+            )
+            ctx = build_price_context(bundle.hist, bundle.price, bundle.ma30)
+            rows.append(
+                {
+                    "name": bundle.name,
+                    "code": bundle.code,
+                    "year_dd": ctx.year_dd,
+                    "stage": ctx.stage,
+                }
+            )
+        except Exception as exc:
+            log.warning("发薪日提醒跳过 %s: %s", code, exc)
+    rows.sort(key=lambda r: (r["year_dd"] is None, r["year_dd"] or 0.0))
+
+    markdown = payday_markdown(rows, bonus=bonus)
+    if dry_run:
+        log.info("[dry-run] 发薪日提醒:\n%s", markdown)
+        return 0
+    channel = send_alert(
+        markdown=markdown,
+        title="发薪日 · 按计划买入",
+        prefer_images=False,
+    )
+    log.info("已通过 %s 发送发薪日提醒", channel)
+    return 0
 
 
 def main() -> None:
@@ -360,6 +471,16 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="只计算，不发 Webhook")
     parser.add_argument("--force", action="store_true", help="忽略去重与冷却期")
     parser.add_argument("--notify-test", action="store_true", help="飞书连通测试")
+    parser.add_argument(
+        "--heartbeat",
+        action="store_true",
+        help="发送每日巡检心跳，并备份状态文件",
+    )
+    parser.add_argument(
+        "--payday",
+        action="store_true",
+        help="若今天是发薪日则推送买入提醒（非发薪日静默退出）",
+    )
     parser.add_argument(
         "--digest",
         action="store_true",
@@ -393,6 +514,26 @@ def main() -> None:
         channel = send_test_ping()
         log.info("测试消息已发送（%s）", channel)
         raise SystemExit(0)
+
+    if args.payday:
+        load_dotenv(ROOT / ".env")
+        raise SystemExit(run_payday(Path(args.config), dry_run=args.dry_run))
+
+    if args.heartbeat:
+        load_dotenv(ROOT / ".env")
+        state_path = ROOT / os.getenv("STATE_FILE", "data/alert_state.json")
+        trades_path = ROOT / "data" / "trades.csv"
+        copied = snapshot_state([state_path, trades_path], ROOT / "data" / "backups")
+        log.info("已备份 %d 个状态文件", len(copied))
+        state = AlertState(state_path)
+        markdown, healthy = heartbeat_markdown(
+            state, pending_count=len(state.pending_actions())
+        )
+        if args.dry_run:
+            log.info("[dry-run] 心跳内容:\n%s", markdown)
+        else:
+            send_alert(markdown=markdown, title="每日巡检心跳", prefer_images=False)
+        raise SystemExit(0 if healthy else 1)
 
     if args.record_trade:
         side, code, quantity_raw, price_raw = args.record_trade
@@ -440,9 +581,8 @@ def main() -> None:
         if args.market and args.market.lower() != "all":
             markets = [m.strip().lower() for m in args.market.split(",") if m.strip()]
         state_path = ROOT / os.getenv("STATE_FILE", "data/alert_state.json")
-        action_md = action_summary_markdown(
-            AlertState(state_path), TradeLedger(ROOT / "data" / "trades.csv")
-        )
+        ledger = TradeLedger(ROOT / "data" / "trades.csv")
+        action_md = action_summary_markdown(AlertState(state_path), ledger)
         raise SystemExit(
             run_report(
                 stocks,
@@ -451,6 +591,7 @@ def main() -> None:
                 markets=markets,
                 compact=(report_kind == "daily" and not args.full_report),
                 action_markdown=action_md if report_kind == "daily" else None,
+                ledger=ledger,
             )
         )
 

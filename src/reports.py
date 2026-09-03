@@ -7,10 +7,12 @@ import re
 from datetime import date
 from typing import Any
 
+from src.action_digest import positions_markdown
 from src.digest import MARKET_TITLE, collect_bundles
 from src.fetch_quotes import QuoteBundle
 from src.llm import chat, deepseek_enabled
 from src.notify import send_alert
+from src.trades import TradeLedger
 from src.perf import (
     PeriodChange,
     change_by_calendar_days,
@@ -530,6 +532,7 @@ def run_report(
     markets: list[str] | None = None,
     compact: bool = False,
     action_markdown: str | None = None,
+    ledger: TradeLedger | None = None,
 ) -> int:
     """kind: daily | weekly | monthly — market data cards + one DeepSeek summary."""
     kind = (kind or "daily").strip().lower()
@@ -615,6 +618,19 @@ def run_report(
                     tables=tables,
                 )
                 log.info("已通过 %s 发送 %s（%d 只 / %d 表）", channel, title, len(group), len(tables))
+            sent += 1
+
+    # Priced off the bundles already fetched above, so no extra round trips.
+    if ledger is not None and all_bundles:
+        prices = {f"{b.market}:{b.code.upper()}": b.price for b in all_bundles}
+        holdings_md = positions_markdown(ledger, prices)
+        if holdings_md:
+            title = "持仓与成本"
+            if dry_run:
+                log.info("[dry-run] %s\n%s", title, holdings_md)
+            else:
+                channel = send_alert(title=title, markdown=holdings_md, prefer_images=False)
+                log.info("已通过 %s 发送 %s", channel, title)
             sent += 1
 
     if all_bundles and not (compact and kind == "daily"):

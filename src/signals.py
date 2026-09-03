@@ -1,4 +1,10 @@
-"""Buy / observe signals: MA30 touch, and multi-level drawdown from the 1-year high."""
+"""Signals: MA30 touch, multi-level 1-year drawdown, and intraday slides.
+
+The three differ in urgency. MA30 and the drawdown bands describe where a symbol
+sits and can wait for the daily digest. An intraday slide cannot: it is only
+actionable while the session is open, so it is evaluated against the live price
+on every scan and is never folded into a report.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +15,8 @@ HIGH_WINDOW = 252
 # Below this many daily bars the 1-year high is not yet meaningful.
 MIN_HISTORY_FOR_DRAWDOWN = 120
 DEFAULT_DRAWDOWN_LEVELS = (5, 10, 15, 20, 30, 40, 50)
+# Bands for a same-session slide measured against the previous close.
+DEFAULT_INTRADAY_DIP_LEVELS = (3.0, 5.0, 8.0)
 
 
 @dataclass
@@ -22,6 +30,9 @@ class QuoteSnapshot:
     as_of: str
     history_rows: int
     high_252: float = 0.0
+    # Current change against the previous close; intraday when `live` is True.
+    change_pct: float | None = None
+    live: bool = False
 
 
 @dataclass
@@ -71,6 +82,73 @@ class DrawdownSignal:
             f"日线截至 {self.as_of}\n"
             f"仅供观察；主仓定投请按计划继续，勿因单档回撤空仓等待。"
         ).strip()
+
+
+@dataclass
+class IntradayDipSignal:
+    code: str
+    name: str
+    price: float
+    change_pct: float
+    threshold_pct: float
+    year_drawdown_pct: float
+    as_of: str
+    live: bool = True
+
+    @property
+    def title(self) -> str:
+        return f"急跌提醒 · -{self.threshold_pct:g}%"
+
+    @property
+    def message(self) -> str:
+        basis = "盘中" if self.live else "最新收盘"
+        stale = "" if self.live else "\n（未取到实时价，以上为最近一个收盘价）"
+        return (
+            f"**{self.name}({self.code})** {basis}急跌\n"
+            f"现价 **{self.price:.2f}**　当日 **{self.change_pct:+.2f}%**"
+            f"（阈值 -{self.threshold_pct:g}%）\n"
+            f"距一年高点 **{self.year_drawdown_pct:+.2f}%**\n"
+            f"若手头有机动资金，这是可考虑加一笔的时点；无资金则不必动。\n"
+            f"日线截至 {self.as_of}{stale}"
+        ).strip()
+
+
+def crossed_intraday_dip_levels(
+    snapshot: QuoteSnapshot,
+    levels: list[float] | tuple[float, ...],
+    already_fired: list[float] | tuple[float, ...] | set[float] = (),
+) -> list[IntradayDipSignal]:
+    """Bands of a same-session slide, each firing once per day.
+
+    Unlike the drawdown bands this is deliberately unfiltered by percentile: a
+    gap-down is worth knowing about even when the symbol is usually calm, and
+    the earlier 3-day/20-day percentile tests silently missed exactly that case.
+    """
+    if snapshot.change_pct is None or snapshot.price <= 0:
+        return []
+    change = float(snapshot.change_pct)
+    year_dd = (
+        (snapshot.price / snapshot.high_252 - 1.0) * 100.0
+        if snapshot.high_252 > 0
+        else 0.0
+    )
+    fired = {abs(float(x)) for x in already_fired}
+    out: list[IntradayDipSignal] = []
+    for raw in sorted({abs(float(x)) for x in levels}):
+        if change <= -raw and raw not in fired:
+            out.append(
+                IntradayDipSignal(
+                    code=snapshot.code,
+                    name=snapshot.name,
+                    price=snapshot.price,
+                    change_pct=change,
+                    threshold_pct=raw,
+                    year_drawdown_pct=year_dd,
+                    as_of=snapshot.as_of,
+                    live=snapshot.live,
+                )
+            )
+    return out
 
 
 def deviation_pct(price: float, ma30: float) -> float:

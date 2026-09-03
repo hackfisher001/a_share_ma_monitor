@@ -8,7 +8,7 @@ priced against the average cost of earlier 低吸 alerts.
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 
@@ -27,6 +27,8 @@ class AlertState:
             "drawdown_fired": {},
             "t_sleeve": {},
             "pending_actions": {},
+            "intraday_fired": {},
+            "health": {},
         }
         self._load()
 
@@ -57,6 +59,14 @@ class AlertState:
             for k, v in (raw.get("pending_actions") or {}).items()
             if isinstance(v, dict)
         }
+        # Intraday bands describe one session only, so they reset with the date.
+        intraday: dict[str, list[float]] = {}
+        if raw.get("date") == _today():
+            for key, levels in (raw.get("intraday_fired") or {}).items():
+                try:
+                    intraday[str(key)] = sorted({abs(float(x)) for x in (levels or [])})
+                except (TypeError, ValueError):
+                    continue
         self._data = {
             "date": _today(),
             "alerted": alerted,
@@ -64,6 +74,8 @@ class AlertState:
             "drawdown_fired": drawdown_fired,
             "t_sleeve": sleeves,
             "pending_actions": pending,
+            "intraday_fired": intraday,
+            "health": dict(raw.get("health") or {}),
         }
 
     def save(self) -> None:
@@ -123,11 +135,42 @@ class AlertState:
         self._data["date"] = _today()
         self.save()
 
-    def save_pending_action(self, key: str, payload: dict) -> None:
-        """Remember a suggested action until the owner explicitly records it."""
-        self._data["pending_actions"][str(key)] = dict(payload)
+    def intraday_fired_levels(self, key: str) -> list[float]:
+        return list(self._data["intraday_fired"].get(str(key), []))
+
+    def mark_intraday_level(self, key: str, level: float) -> None:
+        key = str(key)
+        levels = set(self._data["intraday_fired"].get(key, []))
+        levels.add(abs(float(level)))
+        self._data["intraday_fired"][key] = sorted(levels)
         self._data["date"] = _today()
         self.save()
+
+    def record_scan_health(self, *, checked: int, errors: int, alerts: int) -> None:
+        """Last scan outcome, so a silent failure can be told from a quiet day."""
+        self._data["health"] = {
+            "last_scan_at": datetime.now().isoformat(timespec="seconds"),
+            "checked": int(checked),
+            "errors": int(errors),
+            "alerts": int(alerts),
+        }
+        self.save()
+
+    def scan_health(self) -> dict:
+        return dict(self._data.get("health") or {})
+
+    def save_pending_action(self, key: str, payload: dict) -> None:
+        """Remember a suggested action until the owner explicitly records it."""
+        existing = self._data["pending_actions"].get(str(key)) or {}
+        payload = dict(payload)
+        payload.setdefault("first_seen", existing.get("first_seen") or _today())
+        payload["last_alerted"] = _today()
+        self._data["pending_actions"][str(key)] = payload
+        self._data["date"] = _today()
+        self.save()
+
+    def pending_action(self, key: str) -> dict:
+        return dict(self._data["pending_actions"].get(str(key)) or {})
 
     def pending_actions(self) -> list[dict]:
         return [dict(v) for v in self._data["pending_actions"].values()]

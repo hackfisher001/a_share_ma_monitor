@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from src.state import AlertState
 from src.trades import TradeLedger
+
+DEFAULT_ESCALATE_PCT = 3.0
+DEFAULT_PENDING_TTL_DAYS = 5
 
 
 def pending_key(market: str, code: str, side: str) -> str:
@@ -22,6 +27,78 @@ def action_payload(
         "text": text,
         "kind": kind,
     }
+
+
+def _parse_day(raw: object) -> date | None:
+    try:
+        return date.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def should_realert(
+    pending: dict,
+    *,
+    price: float,
+    side: str,
+    escalate_pct: float = DEFAULT_ESCALATE_PCT,
+    ttl_days: int = DEFAULT_PENDING_TTL_DAYS,
+    today: date | None = None,
+) -> tuple[bool, str]:
+    """Decide whether an unrecorded reminder should speak up again.
+
+    Suppressing repeats stops one dip from alerting daily, but suppressing them
+    forever means a reminder ignored at -5% stays silent at -15%, and the sleeve
+    never advances. So a repeat is allowed when the price moved materially
+    further in the signal's direction, or when the reminder has simply gone
+    stale.
+    """
+    if not pending:
+        return True, ""
+    today = today or date.today()
+    side = side.upper()
+    try:
+        prior = float(pending.get("price") or 0.0)
+    except (TypeError, ValueError):
+        prior = 0.0
+
+    if prior > 0 and price > 0 and escalate_pct > 0:
+        move_pct = (price / prior - 1.0) * 100.0
+        if side == "BUY" and move_pct <= -escalate_pct:
+            return True, f"较上次提醒又跌了 {abs(move_pct):.2f}%"
+        if side == "SELL" and move_pct >= escalate_pct:
+            return True, f"较上次提醒又涨了 {move_pct:.2f}%"
+
+    last = _parse_day(pending.get("last_alerted")) or _parse_day(pending.get("first_seen"))
+    if last is not None and ttl_days > 0 and (today - last).days >= ttl_days:
+        age = (today - (_parse_day(pending.get("first_seen")) or last)).days
+        return True, f"这条提醒已挂 {age} 天仍未记录成交"
+
+    return False, ""
+
+
+def positions_markdown(ledger: TradeLedger, prices: dict[str, float]) -> str:
+    """Real holdings from the journal, priced with `market:code` -> price."""
+    held = [p for p in ledger.positions().values() if p.holding]
+    if not held:
+        return ""
+    lines = ["**持仓（按已记录的成交计算）**"]
+    total_pnl = 0.0
+    total_cost = 0.0
+    for pos in sorted(held, key=lambda p: (p.market, p.code)):
+        price = float(prices.get(f"{pos.market}:{pos.code}") or 0.0)
+        gain = pos.unrealised_pct(price)
+        gain_txt = "—" if gain is None else f"{gain:+.2f}%"
+        lines.append(
+            f"- {pos.code}　{pos.quantity:g} 股　成本 {pos.avg_price:.2f}"
+            f"　现价 {price:.2f}　浮盈 {gain_txt}"
+        )
+        if gain is not None:
+            total_pnl += pos.quantity * price - pos.cost
+            total_cost += pos.cost
+    if total_cost > 0:
+        lines.append(f"**合计浮盈：** {total_pnl:+.2f}（{total_pnl / total_cost * 100:+.2f}%）")
+    return "\n".join(lines)
 
 
 def action_summary_markdown(state: AlertState, ledger: TradeLedger) -> str:

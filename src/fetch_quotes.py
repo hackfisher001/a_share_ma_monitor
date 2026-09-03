@@ -409,9 +409,63 @@ def lookup_spot_hk(code: str) -> tuple[float | None, str]:
         return None, ""
 
 
+def parse_tencent_us_quote(text: str) -> SpotQuote | None:
+    """Same field layout as the CN board, but the session stamp is a datetime."""
+    if '="' not in text:
+        return None
+    payload = text.split('="', 1)[1].rstrip('";\n')
+    if not payload or payload == "1":
+        return None
+    parts = payload.split("~")
+    if len(parts) < 5:
+        return None
+    name = parts[1].strip()
+    try:
+        price = float(parts[3])
+    except (TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    prev_close = None
+    try:
+        prev_close = float(parts[4]) if parts[4] else None
+    except (TypeError, ValueError):
+        prev_close = None
+    as_of = None
+    if len(parts) > 30 and parts[30]:
+        try:
+            as_of = datetime.strptime(parts[30].strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            as_of = None
+    return SpotQuote(price=price, name=name, prev_close=prev_close, as_of=as_of)
+
+
+def lookup_spot_us_detail(code: str) -> SpotQuote | None:
+    """Yahoo is unreachable from CN clouds; Tencent mirrors the US board.
+
+    Only plain tickers exist there, so futures/crypto symbols such as `GC=F`
+    and `BTC-USD` fall back to the daily close instead of guessing.
+    """
+    symbol = _normalize_us(code)
+    if not symbol.isalnum():
+        return None
+    try:
+        resp = requests.get(
+            f"https://qt.gtimg.cn/q=us{symbol}",
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        return parse_tencent_us_quote(resp.content.decode("gbk", errors="ignore"))
+    except Exception:
+        return None
+
+
 def lookup_spot_us(code: str) -> tuple[float | None, str]:
-    """CN cloud often cannot reach Yahoo; leave spot empty and use daily close."""
-    return None, ""
+    spot = lookup_spot_us_detail(code)
+    if spot is None:
+        return None, ""
+    return spot.price, spot.name
 
 
 @dataclass
@@ -425,6 +479,9 @@ class QuoteBundle:
     as_of: str
     hist: pd.DataFrame
     theme: str = ""
+    # True when `price` came from a live quote rather than the last daily close.
+    live: bool = False
+    prev_close: float | None = None
 
 
 def fetch_history(code: str, market: str = "cn") -> pd.DataFrame:
@@ -474,9 +531,7 @@ def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
     elif market == "us":
         display = _normalize_us(code)
         hist = fetch_daily_history_us(display)
-        spot_price, spot_name = lookup_spot_us(display)
-        if spot_price is not None:
-            spot = SpotQuote(price=spot_price, name=spot_name, as_of=_session_date("us"))
+        spot = lookup_spot_us_detail(display)
     else:
         display = _normalize_cn(code)
         hist = fetch_daily_history_cn(display)
@@ -508,6 +563,8 @@ def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
         high_252=high_252,
         as_of=as_of,
         hist=hist,
+        live=spot is not None,
+        prev_close=spot.prev_close if spot is not None else None,
     )
 
 
