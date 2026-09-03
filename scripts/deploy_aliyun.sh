@@ -9,14 +9,16 @@ HOST="${DEPLOY_HOST:-root@47.95.122.231}"
 KEY="${DEPLOY_KEY:-$HOME/.ssh/id_ed25519}"
 REMOTE="${DEPLOY_PATH:-/root/a_share_ma_monitor}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SSH_OPTS=(-o ConnectTimeout=25 -o ServerAliveInterval=10 -i "$KEY")
+# 强制 IPv4（-4）：本机若走 IPv6 出口，服务器 sshd 会在密钥交换阶段直接断连，
+# 表现为「TCP 22 能通、banner 能拿到、但 KEX 后即被关闭」。加 -4 立即恢复。
+SSH_OPTS=(-4 -o ConnectTimeout=25 -o ServerAliveInterval=10 -i "$KEY")
 
 cd "$ROOT"
 
 echo "==> 检查连通性 $HOST"
 if ! ssh -o BatchMode=yes "${SSH_OPTS[@]}" "$HOST" 'echo ok' >/dev/null 2>&1; then
-  echo "SSH 连不上。若 TCP 22 能通但握手即断，通常是 sshd 限流或机器资源耗尽，" >&2
-  echo "需要去阿里云控制台看 VNC / 重启，本地重试无用。" >&2
+  echo "SSH 连不上。本脚本已强制 IPv4；若仍失败且 TCP 22 能通但握手即断，" >&2
+  echo "通常是 sshd 限流或机器资源耗尽，需去阿里云控制台看 VNC / 重启。" >&2
   exit 1
 fi
 
