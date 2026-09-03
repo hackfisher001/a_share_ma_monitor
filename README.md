@@ -160,6 +160,8 @@ A/H 默认 **16:10** 推送；美股默认北京时间 **次日 06:30** 推送�
 
 ## 阿里云部署
 
+首次安装（在服务器上）：
+
 ```bash
 sudo apt update && sudo apt install -y python3 python3-venv git   # Ubuntu
 git clone <你的仓库地址> ~/a_share_ma_monitor
@@ -171,6 +173,16 @@ nano watchlist.yaml
 ./scripts/run_once.sh --notify-test
 ./scripts/run_once.sh --dry-run
 ```
+
+之后每次改完代码，在**本地**一条命令同步（跑测试 → rsync → 重装 crontab → 远端试跑 → 心跳自检）：
+
+```bash
+./scripts/deploy_aliyun.sh
+```
+
+它不会覆盖服务器上的 `.env` 和 `data/`——前者存着飞书 webhook，后者存着机动仓账本与成交流水，都是本地没有且算不回来的。
+
+若报「TCP 22 能通但握手即断」（`kex_exchange_identification: Connection closed`），那是 sshd 限流或机器资源耗尽，**本地重试无用**，需要去阿里云控制台看 VNC 或重启。
 
 日志：`data/cron.log`；去重状态：`data/alert_state.json`；状态快照：`data/backups/`。
 

@@ -16,6 +16,9 @@ from src.state import AlertState
 
 SNAPSHOT_KEEP_DAYS = 30
 STALE_SCAN_HOURS = 24
+# A stray fetch failure is normal noise. Only escalate when a scan was mostly
+# blind, otherwise the heartbeat becomes the alert fatigue it exists to prevent.
+ERROR_RATIO_ALARM = 0.3
 
 
 def snapshot_state(paths: list[Path], backup_root: Path, *, keep_days: int = SNAPSHOT_KEEP_DAYS) -> list[Path]:
@@ -69,12 +72,15 @@ def heartbeat_markdown(
     age_h = (now - last_at).total_seconds() / 3600.0
     errors = int(health.get("errors") or 0)
     checked = int(health.get("checked") or 0)
-    healthy = age_h <= stale_hours and errors == 0
+    mostly_blind = errors > 0 and (checked <= 0 or errors / checked >= ERROR_RATIO_ALARM)
+    healthy = age_h <= stale_hours and not mostly_blind
 
     if age_h > stale_hours:
         head = f"**⚠️ 巡检已停摆 {age_h:.0f} 小时**"
+    elif mostly_blind:
+        head = f"**⚠️ 巡检大面积失败：{errors}/{checked} 只**"
     elif errors:
-        head = f"**⚠️ 巡检有 {errors} 只抓取失败**"
+        head = f"**✅ 巡检正常**（{errors} 只偶发失败，可忽略）"
     else:
         head = "**✅ 巡检正常**"
 

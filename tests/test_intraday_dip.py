@@ -142,11 +142,18 @@ def test_heartbeat_is_green_after_a_clean_scan(tmp_path):
     assert healthy and "巡检正常" in md and "待确认动作 2 条" in md
 
 
-def test_heartbeat_reports_fetch_failures(tmp_path):
+def test_stray_fetch_failure_is_reported_but_not_alarming(tmp_path):
     state = AlertState(tmp_path / "state.json")
-    state.record_scan_health(checked=20, errors=3, alerts=0)
+    state.record_scan_health(checked=20, errors=1, alerts=0)
     md, healthy = heartbeat_markdown(state, pending_count=0)
-    assert not healthy and "3 只抓取失败" in md
+    assert healthy and "1 只偶发失败" in md
+
+
+def test_mostly_blind_scan_escalates(tmp_path):
+    state = AlertState(tmp_path / "state.json")
+    state.record_scan_health(checked=20, errors=12, alerts=0)
+    md, healthy = heartbeat_markdown(state, pending_count=0)
+    assert not healthy and "12/20" in md
 
 
 def test_heartbeat_without_any_scan(tmp_path):
