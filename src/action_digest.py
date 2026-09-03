@@ -79,14 +79,20 @@ def should_realert(
 
 def positions_markdown(ledger: TradeLedger, prices: dict[str, float]) -> str:
     """Real holdings from the journal, priced with `market:code` -> price."""
-    held = [p for p in ledger.positions().values() if p.holding]
+    # Reports are market-scoped, so `prices` only covers the market being sent.
+    # Skipping unpriced holdings beats printing 现价 0.00 for the other market.
+    held = [
+        p
+        for p in ledger.positions().values()
+        if p.holding and float(prices.get(f"{p.market}:{p.code}") or 0.0) > 0
+    ]
     if not held:
         return ""
     lines = ["**持仓（按已记录的成交计算）**"]
     total_pnl = 0.0
     total_cost = 0.0
     for pos in sorted(held, key=lambda p: (p.market, p.code)):
-        price = float(prices.get(f"{pos.market}:{pos.code}") or 0.0)
+        price = float(prices[f"{pos.market}:{pos.code}"])
         gain = pos.unrealised_pct(price)
         gain_txt = "—" if gain is None else f"{gain:+.2f}%"
         lines.append(

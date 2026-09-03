@@ -57,15 +57,48 @@ def test_message_flags_a_stale_close():
     assert "未取到实时价" in hit.message
 
 
-def test_intraday_bands_reset_next_day(tmp_path):
+def test_intraday_bands_persist_within_one_session(tmp_path):
     path = tmp_path / "state.json"
-    state = AlertState(path)
-    state.mark_intraday_level("cn:518880", 3.0)
-    assert AlertState(path).intraday_fired_levels("cn:518880") == [3.0]
+    AlertState(path).mark_intraday_level("cn:518880", 3.0, "2026-09-03")
+    assert AlertState(path).intraday_fired_levels("cn:518880", "2026-09-03") == [3.0]
 
-    stale = path.read_text(encoding="utf-8").replace(date.today().isoformat(), "2020-01-01", 1)
-    path.write_text(stale, encoding="utf-8")
-    assert AlertState(path).intraday_fired_levels("cn:518880") == []
+
+def test_intraday_bands_clear_on_the_next_session(tmp_path):
+    path = tmp_path / "state.json"
+    AlertState(path).mark_intraday_level("cn:518880", 3.0, "2026-09-03")
+    assert AlertState(path).intraday_fired_levels("cn:518880", "2026-09-04") == []
+
+
+def test_us_session_spanning_beijing_midnight_does_not_double_alert(tmp_path):
+    """22:00 and 00:30 Beijing are one US session; the band must stay fired.
+
+    Resetting on the local calendar day used to re-fire it after midnight.
+    """
+    path = tmp_path / "state.json"
+    AlertState(path).mark_intraday_level("us:TSLA", 3.0, "2026-09-03")
+    rolled = path.read_text(encoding="utf-8").replace(
+        f'"date": "{date.today().isoformat()}"', '"date": "2026-09-03"', 1
+    )
+    path.write_text(rolled, encoding="utf-8")
+    assert AlertState(path).intraday_fired_levels("us:TSLA", "2026-09-03") == [3.0]
+
+
+def test_next_us_session_is_not_swallowed_by_the_previous_one(tmp_path):
+    path = tmp_path / "state.json"
+    AlertState(path).mark_intraday_level("us:TSLA", 3.0, "2026-09-03")
+    state = AlertState(path)
+    assert state.intraday_fired_levels("us:TSLA", "2026-09-04") == []
+    state.mark_intraday_level("us:TSLA", 5.0, "2026-09-04")
+    assert state.intraday_fired_levels("us:TSLA", "2026-09-04") == [5.0]
+
+
+def test_legacy_list_shaped_intraday_state_is_ignored(tmp_path):
+    path = tmp_path / "state.json"
+    path.write_text(
+        '{"date": "2026-09-03", "intraday_fired": {"cn:518880": [3.0]}}',
+        encoding="utf-8",
+    )
+    assert AlertState(path).intraday_fired_levels("cn:518880", "2026-09-03") == []
 
 
 def test_drawdown_bands_survive_the_day_rollover(tmp_path):

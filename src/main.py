@@ -301,7 +301,10 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
             # A same-session slide is the one thing that must interrupt you, so
             # it runs ahead of everything else and ignores action_only.
             if config.intraday_dip_levels:
-                already_dip = () if force else state.intraday_fired_levels(state_key)
+                # Keyed on the quote's own session date, not the local day.
+                already_dip = (
+                    () if force else state.intraday_fired_levels(state_key, snap.as_of)
+                )
                 for dip in crossed_intraday_dip_levels(
                     snap, config.intraday_dip_levels, already_fired=already_dip
                 ):
@@ -318,7 +321,9 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                             state_key,
                             dip.threshold_pct,
                         )
-                        state.mark_intraday_level(state_key, dip.threshold_pct)
+                        state.mark_intraday_level(
+                            state_key, dip.threshold_pct, snap.as_of
+                        )
                     alerts += 1
 
             # Swing-T is opt-in per symbol; the sleeve is bookkeeping, so --force

@@ -18,9 +18,9 @@ notifications:
 # day 为工资到账日；bonus_months 里的月份会额外提示年终奖一次性买入。
 payday:
   enabled: true
-  day: 10
-  bonus_months: [2]
-  bonus_day: 10
+  workday: 1          # 每月第几个工作日（周一到周五）
+  bonus_months: [2]   # 年终奖月份
+  bonus_workday: 1
 
 # 盘中急跌：用实时价对比昨收，每次巡检都判一次，跌破档位立刻推。
 # 不受 action_only 屏蔽——这类提醒只在你还能下单的时候有价值。

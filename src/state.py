@@ -59,14 +59,23 @@ class AlertState:
             for k, v in (raw.get("pending_actions") or {}).items()
             if isinstance(v, dict)
         }
-        # Intraday bands describe one session only, so they reset with the date.
-        intraday: dict[str, list[float]] = {}
-        if raw.get("date") == _today():
-            for key, levels in (raw.get("intraday_fired") or {}).items():
-                try:
-                    intraday[str(key)] = sorted({abs(float(x)) for x in (levels or [])})
-                except (TypeError, ValueError):
-                    continue
+        # Intraday bands belong to one *market* session, which is not the local
+        # calendar day: a US session spans Beijing midnight, so resetting on the
+        # local date would both double-alert after midnight and swallow the next
+        # evening's genuinely new session. Each entry therefore carries the
+        # session it applies to and invalidates itself.
+        intraday: dict[str, dict] = {}
+        for key, entry in (raw.get("intraday_fired") or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                levels = sorted({abs(float(x)) for x in (entry.get("levels") or [])})
+            except (TypeError, ValueError):
+                continue
+            intraday[str(key)] = {
+                "session": str(entry.get("session") or ""),
+                "levels": levels,
+            }
         self._data = {
             "date": _today(),
             "alerted": alerted,
@@ -135,14 +144,25 @@ class AlertState:
         self._data["date"] = _today()
         self.save()
 
-    def intraday_fired_levels(self, key: str) -> list[float]:
-        return list(self._data["intraday_fired"].get(str(key), []))
+    def intraday_fired_levels(self, key: str, session: str) -> list[float]:
+        entry = self._data["intraday_fired"].get(str(key)) or {}
+        if str(entry.get("session") or "") != str(session):
+            return []
+        return list(entry.get("levels") or [])
 
-    def mark_intraday_level(self, key: str, level: float) -> None:
-        key = str(key)
-        levels = set(self._data["intraday_fired"].get(key, []))
+    def mark_intraday_level(self, key: str, level: float, session: str) -> None:
+        key, session = str(key), str(session)
+        entry = self._data["intraday_fired"].get(key) or {}
+        levels = (
+            set(entry.get("levels") or [])
+            if str(entry.get("session") or "") == session
+            else set()
+        )
         levels.add(abs(float(level)))
-        self._data["intraday_fired"][key] = sorted(levels)
+        self._data["intraday_fired"][key] = {
+            "session": session,
+            "levels": sorted(levels),
+        }
         self._data["date"] = _today()
         self.save()
 

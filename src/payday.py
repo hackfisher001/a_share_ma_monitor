@@ -16,11 +16,11 @@ from datetime import date
 @dataclass(frozen=True)
 class PaydayConfig:
     enabled: bool = False
-    # Day of month salary lands; clamped to the last day in short months.
-    day: int = 10
+    # Salary lands on the Nth working day (Mon-Fri) of the month.
+    workday: int = 1
     # Months where an annual bonus also arrives (1-12).
     bonus_months: tuple[int, ...] = ()
-    bonus_day: int = 10
+    bonus_workday: int = 1
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "PaydayConfig":
@@ -28,14 +28,25 @@ class PaydayConfig:
         months = raw.get("bonus_months") or ()
         return cls(
             enabled=bool(raw.get("enabled", False)),
-            day=max(1, min(31, int(raw.get("day", 10)))),
+            workday=max(1, min(23, int(raw.get("workday", 1)))),
             bonus_months=tuple(sorted({int(m) for m in months if 1 <= int(m) <= 12})),
-            bonus_day=max(1, min(31, int(raw.get("bonus_day", raw.get("day", 10))))),
+            bonus_workday=max(1, min(23, int(raw.get("bonus_workday", raw.get("workday", 1))))),
         )
 
 
-def _clamped(year: int, month: int, day: int) -> int:
-    return min(day, calendar.monthrange(year, month)[1])
+def nth_workday(year: int, month: int, n: int) -> date:
+    """The Nth Mon-Fri of the month; clamps to the month's last working day."""
+    days_in_month = calendar.monthrange(year, month)[1]
+    seen = 0
+    last_workday = date(year, month, 1)
+    for day in range(1, days_in_month + 1):
+        d = date(year, month, day)
+        if d.weekday() < 5:
+            seen += 1
+            last_workday = d
+            if seen == n:
+                return d
+    return last_workday
 
 
 def is_payday(config: PaydayConfig, today: date | None = None) -> tuple[bool, bool]:
@@ -43,10 +54,10 @@ def is_payday(config: PaydayConfig, today: date | None = None) -> tuple[bool, bo
     if not config.enabled:
         return False, False
     today = today or date.today()
-    salary = today.day == _clamped(today.year, today.month, config.day)
+    salary = today == nth_workday(today.year, today.month, config.workday)
     bonus = (
         today.month in config.bonus_months
-        and today.day == _clamped(today.year, today.month, config.bonus_day)
+        and today == nth_workday(today.year, today.month, config.bonus_workday)
     )
     return salary or bonus, bonus
 
