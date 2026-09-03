@@ -9,3 +9,4 @@ data/alert_state.json
 data/trades.csv
 *.log
 .DS_Store
+data/dividends.json

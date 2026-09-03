@@ -5,10 +5,12 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from src.action_digest import positions_markdown
 from src.digest import MARKET_TITLE, collect_bundles
+from src.dividends import income_markdown, load_profile
 from src.fetch_quotes import QuoteBundle
 from src.llm import chat, deepseek_enabled
 from src.notify import send_alert
@@ -533,6 +535,7 @@ def run_report(
     compact: bool = False,
     action_markdown: str | None = None,
     ledger: TradeLedger | None = None,
+    income_codes: set[str] | None = None,
 ) -> int:
     """kind: daily | weekly | monthly — market data cards + one DeepSeek summary."""
     kind = (kind or "daily").strip().lower()
@@ -618,6 +621,28 @@ def run_report(
                     tables=tables,
                 )
                 log.info("已通过 %s 发送 %s（%d 只 / %d 表）", channel, title, len(group), len(tables))
+            sent += 1
+
+    # Dividend data is slow and changes a few times a year, so it is fetched
+    # here (per report, cached for a week) rather than in the intraday scan.
+    if income_codes and all_bundles:
+        cache = Path("data") / "dividends.json"
+        rows = []
+        for b in all_bundles:
+            if b.market != "cn" or b.code not in income_codes:
+                continue
+            try:
+                rows.append((b.name, b.code, load_profile(b.code, cache_path=cache), b.price))
+            except Exception as exc:
+                log.warning("股息率跳过 %s: %s", b.code, exc)
+        markdown = income_markdown(rows)
+        if markdown:
+            title = "收息仓 · 股息率"
+            if dry_run:
+                log.info("[dry-run] %s\n%s", title, markdown)
+            else:
+                channel = send_alert(title=title, markdown=markdown, prefer_images=False)
+                log.info("已通过 %s 发送 %s", channel, title)
             sent += 1
 
     # Priced off the bundles already fetched above, so no extra round trips.

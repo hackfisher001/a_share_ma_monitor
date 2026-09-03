@@ -1,16 +1,21 @@
 # 监控列表
 #
-# 定位（依据 docs/定投与做T回测.md，12.3 年样本、含 2015/2018/2022 三轮下跌）：
-#   MA30 与回撤两类提醒都只是「现在贵还是便宜」的信息，不是让你推迟买入。
-#   回测里「攒钱等回撤」在 13 个标的上 0 胜，等得越久越差，工资到账就买最优。
-#   做 T 只对回测中两组参数都跑赢定投的标的开启，见下方 swing_t。
+# 定位（依据 docs/ 下两份回测，12.3 年样本、含 2015/2018/2022 三轮下跌）：
+#
+#   1. 「攒钱等回撤再买」在 13 个标的上 0 胜（定投与做T回测.md）。一次性资金
+#      遍历 2205 个入场日后胜率也只有 27%（一次性资金入场时点回测.md）。
+#      所以 MA30 和回撤提醒只是「现在贵还是便宜」的信息，不是推迟买入的理由。
+#
+#   2. 做 T 已关闭。它平均每年输给定投 2.82%，13 个标的只有 4 个赢；而且
+#      招行偏好 -5%/+5%、中国移动偏好 -8%/+8%，两只对参数的偏好相反——
+#      真有规律的话它们该一致。这说明那几个「赢」是负期望分布的右尾，
+#      是样本内过拟合，不是可复现的优势。
 #
 # touch_pct: 现价相对 MA30 偏离 ≤ 该值时发走势提示
 touch_pct: 0.5
 
-# 默认只推送需要你执行或确认的动作：做T低吸/高抛。
-# MA30、年度回撤和短期异常回撤会留在日报摘要中，不再打断你。
-# 若你确实想恢复旧版全部即时提醒，改为 false。
+# MA30、年度回撤和短期异常回撤留在日报摘要中，不即时打断。
+# 盘中急跌不受此约束（见下）。若想恢复全部即时提醒，改为 false。
 notifications:
   action_only: true
 
@@ -21,18 +26,15 @@ intraday_dip:
   enabled: true
   levels: [3.0, 5.0, 8.0]
 
-# 做 T（低吸 / 高抛）：仅对个股里 swing_t: true 的标的生效。
-# 参数即回测变体 G：距 252 日高点 -5% 低吸，机动仓均价 +5% 高抛。
-# 成长股与所有 ETF 一律不开——回测中它们每年输给定投 3%~9%。
+# 做 T 已关闭（见文件头第 2 条）。参数保留仅为让历史机动仓账本仍可读；
+# 任何标的都不再设 swing_t: true，也不会再产生低吸/高抛提醒。
 swing_t:
+  enabled: false
   buy_drawdown_pct: 5.0
   sell_bounce_pct: 5.0
-  # 低吸后解除武装，回升到距高点 -4% 以内才重新武装，避免一路下跌天天提醒
   rearm_pct: 4.0
   high_window: 252
   max_adds: 4
-  # 待确认提醒不会永久静音：再跌 escalate_pct 或挂满 pending_ttl_days 天就重提，
-  # 否则漏记一次会让这只票的做T彻底哑掉。
   escalate_pct: 3.0
   pending_ttl_days: 5
 
@@ -53,39 +55,39 @@ recent_pullback_cooldown_days: 7
 
 stocks:
   # —— A股个股 ——
-  # 招行与中国移动是 13 个标的里唯一在 -8%/+8% 与 -5%/+5% 两组参数下都跑赢定投的
+  # 前五只是收息仓：主要收益来自分红，不做 T（见文件头第 2 条）
   - code: "600036"
     name: "招商银行"
     market: cn
     theme: stock
-    swing_t: true
+    income: true
   - code: "600941"
     name: "中国移动"
     market: cn
     theme: stock
-    swing_t: true
+    income: true
   - code: "600377"
     name: "宁沪高速"
     market: cn
     theme: stock
+    income: true
   - code: "600900"
     name: "长江电力"
     market: cn
     theme: stock
+    income: true
   - code: "601088"
     name: "中国神华"
     market: cn
     theme: stock
+    income: true
   - code: "601899"
     name: "紫金矿业"
     market: cn
     theme: stock
 
-  # —— 境内纳指相关 ETF ——
-  - code: "159509"
-    name: "纳指科技ETF"
-    market: cn
-    theme: nasdaq_cn
+  # —— 境内纳指 ETF ——
+  # 原先同时监控 159509 纳指科技ETF，与本只日收益相关性 0.90，属同一笔押注，已移除
   - code: "159941"
     name: "纳指ETF广发"
     market: cn

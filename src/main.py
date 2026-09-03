@@ -174,7 +174,7 @@ def drawdown_levels_for(item: dict, config: ScanConfig) -> tuple[float, ...]:
     A T 低吸 alert fires at exactly the shallow drawdown the observe bands watch,
     but carries the sleeve context, so it supersedes them.
     """
-    if not item.get("swing_t"):
+    if not (config.swing_t.enabled and item.get("swing_t")):
         return config.drawdown_levels
     floor = config.swing_t.buy_drawdown_pct
     return tuple(level for level in config.drawdown_levels if level > floor)
@@ -325,9 +325,11 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                         )
                     alerts += 1
 
-            # Swing-T is opt-in per symbol; the sleeve is bookkeeping, so --force
-            # must not replay it or the recorded average cost would drift.
-            if item.get("swing_t"):
+            # Swing-T is off globally (see watchlist.yaml header) but the code
+            # path stays so an existing sleeve can still be read and closed out.
+            # The sleeve is bookkeeping, so --force must not replay it or the
+            # recorded average cost would drift.
+            if config.swing_t.enabled and item.get("swing_t"):
                 alerts += _run_swing_t(
                     item=item,
                     snap=snap,
@@ -542,6 +544,9 @@ def main() -> None:
         state_path = ROOT / os.getenv("STATE_FILE", "data/alert_state.json")
         ledger = TradeLedger(ROOT / "data" / "trades.csv")
         action_md = action_summary_markdown(AlertState(state_path), ledger)
+        income_codes = {
+            str(s.get("code", "")).strip() for s in stocks if s.get("income")
+        }
         raise SystemExit(
             run_report(
                 stocks,
@@ -551,6 +556,7 @@ def main() -> None:
                 compact=(report_kind == "daily" and not args.full_report),
                 action_markdown=action_md if report_kind == "daily" else None,
                 ledger=ledger,
+                income_codes=income_codes,
             )
         )
 

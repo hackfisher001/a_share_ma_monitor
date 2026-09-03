@@ -19,6 +19,7 @@ def test_swing_t_config_is_read_from_the_watchlist(tmp_path):
         """
         touch_pct: 0.5
         swing_t:
+          enabled: true
           buy_drawdown_pct: 5.0
           sell_bounce_pct: 5.0
           rearm_pct: 4.0
@@ -33,9 +34,31 @@ def test_swing_t_config_is_read_from_the_watchlist(tmp_path):
 
     config, stocks = load_watchlist(path)
 
+    assert config.swing_t.enabled is True
     assert config.swing_t.buy_drawdown_pct == 5.0
     assert config.swing_t.sell_bounce_pct == 5.0
     assert stocks[0]["swing_t"] is True
+
+
+def test_swing_t_is_off_unless_explicitly_enabled(tmp_path):
+    """The backtest rejected swing-T, so a stale per-symbol flag must not revive it."""
+    path = _write(
+        tmp_path,
+        """
+        touch_pct: 0.5
+        swing_t:
+          buy_drawdown_pct: 5.0
+        stocks:
+          - code: "600036"
+            name: "招商银行"
+            market: cn
+            swing_t: true
+        """,
+    )
+
+    config, _ = load_watchlist(path)
+
+    assert config.swing_t.enabled is False
 
 
 def test_swing_t_defaults_apply_when_the_block_is_absent(tmp_path):
@@ -52,6 +75,7 @@ def test_swing_t_defaults_apply_when_the_block_is_absent(tmp_path):
 
     config, _ = load_watchlist(path)
 
+    assert config.swing_t.enabled is False
     assert config.swing_t.buy_drawdown_pct == 5.0
 
 
@@ -62,7 +86,7 @@ def test_empty_watchlist_is_rejected(tmp_path):
         load_watchlist(path)
 
 
-def _config(levels: tuple[float, ...]) -> ScanConfig:
+def _config(levels: tuple[float, ...], *, t_enabled: bool = True) -> ScanConfig:
     from src.t_signals import TConfig
 
     return ScanConfig(
@@ -73,7 +97,7 @@ def _config(levels: tuple[float, ...]) -> ScanConfig:
         recent_pullback=True,
         recent_pullback_percentile=10.0,
         recent_pullback_cooldown_days=7,
-        swing_t=TConfig(),
+        swing_t=TConfig(enabled=t_enabled),
     )
 
 
@@ -87,3 +111,10 @@ def test_non_t_symbols_keep_every_band():
     config = _config((5, 10, 15, 20, 30))
 
     assert drawdown_levels_for({}, config) == (5, 10, 15, 20, 30)
+
+
+def test_disabling_swing_t_restores_the_shallow_band():
+    """With T off nothing else reports the -5% band, so it must come back."""
+    config = _config((5, 10, 15, 20, 30), t_enabled=False)
+
+    assert drawdown_levels_for({"swing_t": True}, config) == (5, 10, 15, 20, 30)

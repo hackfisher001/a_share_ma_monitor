@@ -31,6 +31,10 @@ MIN_HISTORY_FOR_T = 120
 
 @dataclass(frozen=True)
 class TConfig:
+    # Off by default: swing-T lost to plain DCA by 2.82%/yr across 13 symbols,
+    # and the two apparent winners disagreed on which parameters worked, which
+    # marks them as sample-inside noise rather than a repeatable edge.
+    enabled: bool = False
     buy_drawdown_pct: float = DEFAULT_BUY_DRAWDOWN_PCT
     sell_bounce_pct: float = DEFAULT_SELL_BOUNCE_PCT
     rearm_pct: float = DEFAULT_REARM_PCT
@@ -41,6 +45,7 @@ class TConfig:
     def from_dict(cls, raw: dict | None) -> "TConfig":
         raw = raw or {}
         return cls(
+            enabled=bool(raw.get("enabled", False)),
             buy_drawdown_pct=abs(float(raw.get("buy_drawdown_pct", DEFAULT_BUY_DRAWDOWN_PCT))),
             sell_bounce_pct=abs(float(raw.get("sell_bounce_pct", DEFAULT_SELL_BOUNCE_PCT))),
             rearm_pct=abs(float(raw.get("rearm_pct", DEFAULT_REARM_PCT))),
