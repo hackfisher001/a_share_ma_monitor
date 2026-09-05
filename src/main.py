@@ -7,9 +7,10 @@ import argparse
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+import pandas as pd
 import yaml
 from dotenv import load_dotenv
 
@@ -26,7 +27,25 @@ from src.action_digest import (
     pending_key,
     should_realert,
 )
+from src.alert_batch import (
+    BatchContext,
+    ScanAlert,
+    batch_markdown,
+    batch_title,
+    dedupe_for_display,
+    sort_alerts,
+)
+from src.dip_bands import (
+    DEFAULT_MAX_ABS_PCT,
+    DEFAULT_MIN_ABS_PCT,
+    DEFAULT_SIGMA_LEVELS,
+    calibrated_dip_levels,
+    daily_sigma,
+    describe_band,
+    sigma_multiple,
+)
 from src.notify import send_alert, send_test_ping
+from src.relative import DEFAULT_BENCHMARKS, compare_to_benchmark, resolve_benchmark
 from src.ops import heartbeat_markdown, snapshot_state
 from src.price_context import (
     RECENT_PERCENTILE,
@@ -70,6 +89,15 @@ class ScanConfig:
     # Same-session slide bands. Deliberately exempt from action_only: they are
     # only useful while you can still trade on them.
     intraday_dip_levels: tuple[float, ...] = DEFAULT_INTRADAY_DIP_LEVELS
+    # "sigma" sizes the bands off each symbol's own volatility; "absolute" keeps
+    # the flat ladder. See src/dip_bands.py for why sigma is the default.
+    intraday_dip_mode: str = "sigma"
+    intraday_sigma_levels: tuple[float, ...] = DEFAULT_SIGMA_LEVELS
+    intraday_min_abs_pct: float = DEFAULT_MIN_ABS_PCT
+    intraday_max_abs_pct: float = DEFAULT_MAX_ABS_PCT
+    benchmarks: dict[str, str] = field(
+        default_factory=lambda: dict(DEFAULT_BENCHMARKS)
+    )
     pending_escalate_pct: float = DEFAULT_ESCALATE_PCT
     pending_ttl_days: int = DEFAULT_PENDING_TTL_DAYS
 
@@ -80,6 +108,22 @@ def _intraday_levels(raw: dict | None) -> tuple[float, ...]:
         return ()
     levels = raw.get("levels") or DEFAULT_INTRADAY_DIP_LEVELS
     return tuple(sorted({abs(float(x)) for x in levels}))
+
+
+def _sigma_levels(raw: dict | None) -> tuple[float, ...]:
+    raw = raw or {}
+    levels = raw.get("sigma_levels") or DEFAULT_SIGMA_LEVELS
+    return tuple(sorted({abs(float(x)) for x in levels}))
+
+
+def _benchmarks(raw: dict | None) -> dict[str, str]:
+    if not raw:
+        return dict(DEFAULT_BENCHMARKS)
+    return {
+        str(k).strip().lower(): str(v).strip().upper()
+        for k, v in raw.items()
+        if str(v or "").strip()
+    }
 
 
 def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
@@ -106,6 +150,17 @@ def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
         swing_t=TConfig.from_dict(data.get("swing_t")),
         action_only=bool((data.get("notifications") or {}).get("action_only", True)),
         intraday_dip_levels=_intraday_levels(data.get("intraday_dip")),
+        intraday_dip_mode=str(
+            (data.get("intraday_dip") or {}).get("mode", "sigma")
+        ).strip().lower(),
+        intraday_sigma_levels=_sigma_levels(data.get("intraday_dip")),
+        intraday_min_abs_pct=abs(
+            float((data.get("intraday_dip") or {}).get("min_abs_pct", DEFAULT_MIN_ABS_PCT))
+        ),
+        intraday_max_abs_pct=abs(
+            float((data.get("intraday_dip") or {}).get("max_abs_pct", DEFAULT_MAX_ABS_PCT))
+        ),
+        benchmarks=_benchmarks(data.get("benchmarks")),
         pending_escalate_pct=abs(
             float((data.get("swing_t") or {}).get("escalate_pct", DEFAULT_ESCALATE_PCT))
         ),
@@ -117,6 +172,10 @@ def load_watchlist(path: Path) -> tuple[ScanConfig, list[dict]]:
     if not stocks:
         raise ValueError(f"watchlist 为空: {path}")
     return config, stocks
+
+
+def _fmt_signed(value: float | None) -> str:
+    return "—" if value is None else f"{value:+.2f}%"
 
 
 def _snapshot_from_bundle(bundle: QuoteBundle) -> QuoteSnapshot:
@@ -167,6 +226,121 @@ def _dispatch_alert(
         image_keys=keys or None,
         prefer_images=False,
     )
+
+
+def dip_levels_for(
+    item: dict,
+    config: ScanConfig,
+    hist: pd.DataFrame,
+) -> tuple[tuple[float, ...], str]:
+    """Slide bands for one symbol, plus a short label of where they came from.
+
+    Priority: an explicit per-symbol override, then σ calibration, then the flat
+    ladder. The fallback matters for a freshly listed symbol whose history is
+    too short to measure σ on — it stays covered instead of going silent.
+    """
+    if not config.intraday_dip_levels and config.intraday_dip_mode != "sigma":
+        return (), "关闭"
+    override = item.get("dip_levels")
+    if override:
+        return tuple(sorted({abs(float(x)) for x in override})), "自定义"
+    if config.intraday_dip_mode == "sigma":
+        bands = calibrated_dip_levels(
+            hist,
+            sigma_levels=config.intraday_sigma_levels,
+            min_abs_pct=config.intraday_min_abs_pct,
+            max_abs_pct=config.intraday_max_abs_pct,
+        )
+        if bands:
+            return bands, "σ校准"
+    return config.intraday_dip_levels, "固定档"
+
+
+def _benchmark_backdrop(
+    alerts: list[ScanAlert],
+    peers: dict[str, tuple[str, float | None, pd.DataFrame | None]],
+    benchmarks: dict[str, str],
+) -> list[tuple[str, float]]:
+    """Benchmark moves for the markets that actually fired, shown once up top."""
+    out: list[tuple[str, float]] = []
+    seen: set[str] = set()
+    for market in [a.market for a in alerts]:
+        code = resolve_benchmark(market, benchmarks)
+        if not code:
+            continue
+        key = f"{market}:{code.upper()}"
+        if key in seen:
+            continue
+        seen.add(key)
+        entry = peers.get(key)
+        if entry and entry[1] is not None:
+            out.append((entry[0], float(entry[1])))
+    return out
+
+
+def _flush_scan_alerts(
+    alerts: list[ScanAlert],
+    *,
+    peers: dict[str, tuple[str, float | None, pd.DataFrame | None]],
+    benchmarks: dict[str, str],
+    dry_run: bool,
+) -> int:
+    """Send one scan's alerts, as one detailed card or one combined card."""
+    if not alerts:
+        return 0
+
+    for alert in alerts:
+        entry = peers.get(alert.key)
+        alert.relative = compare_to_benchmark(
+            market=alert.market,
+            code=alert.code,
+            change_pct=alert.change_pct,
+            symbol_hist=entry[2] if entry else None,
+            peers=peers,
+            benchmarks=benchmarks,
+        )
+
+    # Every crossed band is committed below, but only the deepest one per
+    # symbol is worth saying out loud.
+    display = dedupe_for_display(alerts)
+
+    if len(display) == 1:
+        alert = display[0]
+        extra = alert.extra
+        if alert.relative is not None:
+            extra = "\n".join(p for p in (extra, alert.relative.markdown_line()) if p)
+        channel = _dispatch_alert(
+            title=alert.title,
+            headline=alert.headline,
+            ctx=alert.ctx,
+            extra=extra,
+            dry_run=dry_run,
+        )
+        if not dry_run:
+            log.info("已通过 %s 发送 %s: %s", channel, alert.title, alert.key)
+    else:
+        title = batch_title(display)
+        markdown = batch_markdown(
+            display, BatchContext(_benchmark_backdrop(display, peers, benchmarks))
+        )
+        if dry_run:
+            log.info("[dry-run] %s 将发送:\n%s", title, markdown)
+        else:
+            channel = send_alert(markdown=markdown, title=title, prefer_images=False)
+            log.info(
+                "已通过 %s 发送合并提醒（%d 只）: %s",
+                channel,
+                len(display),
+                ", ".join(a.key for a in sort_alerts(display)),
+            )
+
+    # Only persisted after a successful send, so a webhook failure replays the
+    # alert on the next scan instead of losing it.
+    if not dry_run:
+        for alert in alerts:
+            if alert.commit is not None:
+                alert.commit()
+    return len(alerts)
 
 
 def drawdown_levels_for(item: dict, config: ScanConfig) -> tuple[float, ...]:
@@ -265,6 +439,12 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
 
     alerts = 0
     errors = 0
+    # Alerts are held until the scan ends so one market-wide selloff arrives as
+    # one message, and so the benchmark comparison can use symbols fetched later
+    # in the same pass.
+    pending: list[ScanAlert] = []
+    peers: dict[str, tuple[str, float | None, pd.DataFrame | None]] = {}
+
     for item in stocks:
         code = str(item.get("code", "")).strip()
         name = str(item.get("name") or "").strip()
@@ -286,8 +466,10 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
             drawdown = (
                 (snap.price / snap.high_252 - 1) * 100 if snap.high_252 > 0 else 0.0
             )
+            sigma = daily_sigma(bundle.hist)
+            peers[state_key] = (snap.name, snap.change_pct, bundle.hist)
             log.info(
-                "[%s] %s(%s) price=%.2f ma30=%.2f dev=%+.2f%% 距一年高点=%+.2f%% 阶段=%s",
+                "[%s] %s(%s) price=%.2f ma30=%.2f dev=%+.2f%% 距一年高点=%+.2f%% σ=%s 阶段=%s",
                 market.upper(),
                 snap.name,
                 snap.code,
@@ -295,36 +477,49 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 snap.ma30,
                 (snap.price - snap.ma30) / snap.ma30 * 100,
                 drawdown,
+                f"{sigma:.2f}%" if sigma is not None else "—",
                 ctx.stage,
             )
 
             # A same-session slide is the one thing that must interrupt you, so
             # it runs ahead of everything else and ignores action_only.
-            if config.intraday_dip_levels:
+            dip_levels, dip_source = dip_levels_for(item, config, bundle.hist)
+            if dip_levels:
                 # Keyed on the quote's own session date, not the local day.
                 already_dip = (
                     () if force else state.intraday_fired_levels(state_key, snap.as_of)
                 )
                 for dip in crossed_intraday_dip_levels(
-                    snap, config.intraday_dip_levels, already_fired=already_dip
+                    snap, dip_levels, already_fired=already_dip
                 ):
-                    channel = _dispatch_alert(
-                        title=dip.title,
-                        headline=dip.message,
-                        ctx=ctx,
-                        dry_run=dry_run,
+                    band = describe_band(dip.threshold_pct, sigma)
+                    multiple = sigma_multiple(snap.change_pct, sigma)
+                    pending.append(
+                        ScanAlert(
+                            kind="dip",
+                            market=market,
+                            code=snap.code,
+                            name=snap.name,
+                            title=f"急跌提醒 · {band}",
+                            headline=dip.message,
+                            ctx=ctx,
+                            summary_head=(
+                                f"当日 {snap.change_pct:+.2f}%"
+                                + (f"（{multiple:.1f}σ）" if multiple else "")
+                                + f"　触发 {band}"
+                            ),
+                            extra=f"**档位：** {band}（{dip_source}）",
+                            change_pct=snap.change_pct,
+                            sigma=sigma,
+                            band_pct=dip.threshold_pct,
+                            severity=multiple or abs(snap.change_pct or 0.0),
+                            commit=(
+                                lambda k=state_key,
+                                lv=dip.threshold_pct,
+                                s=snap.as_of: state.mark_intraday_level(k, lv, s)
+                            ),
+                        )
                     )
-                    if not dry_run:
-                        log.info(
-                            "已通过 %s 发送急跌提醒: %s -%g%%",
-                            channel,
-                            state_key,
-                            dip.threshold_pct,
-                        )
-                        state.mark_intraday_level(
-                            state_key, dip.threshold_pct, snap.as_of
-                        )
-                    alerts += 1
 
             # Swing-T is off globally (see watchlist.yaml header) but the code
             # path stays so an existing sleeve can still be read and closed out.
@@ -344,16 +539,26 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
             ma_signal = is_touching_ma30(snap, config.touch_pct)
             if ma_signal is not None and not config.action_only:
                 if force or not state.already_alerted(state_key):
-                    channel = _dispatch_alert(
-                        title="走势提示 · MA30",
-                        headline=ma_signal.message,
-                        ctx=ctx,
-                        dry_run=dry_run,
+                    pending.append(
+                        ScanAlert(
+                            kind="ma30",
+                            market=market,
+                            code=snap.code,
+                            name=snap.name,
+                            title="走势提示 · MA30",
+                            headline=ma_signal.message,
+                            ctx=ctx,
+                            summary_head=(
+                                f"贴近 MA30（偏离 {ma_signal.deviation_pct:+.2f}%）"
+                            ),
+                            change_pct=snap.change_pct,
+                            sigma=sigma,
+                            severity=sigma_multiple(snap.change_pct, sigma) or 0.0,
+                            commit=(
+                                lambda k=state_key: state.mark_alerted(k)
+                            ),
+                        )
                     )
-                    if not dry_run:
-                        log.info("已通过 %s 发送 MA30 提醒: %s", channel, state_key)
-                        state.mark_alerted(state_key)
-                    alerts += 1
                 else:
                     log.info("今日已提醒过 %s，跳过", state_key)
 
@@ -365,28 +570,44 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 dd_signals = crossed_drawdown_levels(
                     snap, drawdown_levels_for(item, config), already_fired=already
                 )
-                for dd_signal in (dd_signals if not config.action_only else []):
+                for dd_signal in dd_signals:
                     level = dd_signal.threshold_pct
+                    if config.action_only:
+                        # Record the crossing even while muted. Otherwise the
+                        # episode state stays empty and turning action_only off
+                        # would replay every band already breached — a symbol
+                        # down 22% would fire 5/10/15/20 at once.
+                        if not dry_run:
+                            state.mark_drawdown_level(state_key, level)
+                        continue
                     title = (
                         f"回撤观察 · 超过{level:g}%"
                         if level >= 30
                         else f"回撤观察 · {level:g}%"
                     )
-                    channel = _dispatch_alert(
-                        title=title,
-                        headline=dd_signal.message,
-                        ctx=ctx,
-                        dry_run=dry_run,
-                    )
-                    if not dry_run:
-                        log.info(
-                            "已通过 %s 发送回撤提醒: %s -%g%%",
-                            channel,
-                            state_key,
-                            level,
+                    pending.append(
+                        ScanAlert(
+                            kind="drawdown",
+                            market=market,
+                            code=snap.code,
+                            name=snap.name,
+                            title=title,
+                            headline=dd_signal.message,
+                            ctx=ctx,
+                            summary_head=(
+                                f"距一年高 {dd_signal.drawdown_pct:+.2f}%"
+                                f"（跨过 -{level:g}% 档）"
+                            ),
+                            change_pct=snap.change_pct,
+                            sigma=sigma,
+                            severity=sigma_multiple(snap.change_pct, sigma) or 0.0,
+                            commit=(
+                                lambda k=state_key, lv=level: state.mark_drawdown_level(
+                                    k, lv
+                                )
+                            ),
                         )
-                        state.mark_drawdown_level(state_key, level)
-                    alerts += 1
+                    )
 
             # Deliberately outside action_only: a dip is only worth telling you
             # about while you can still place the order, so folding it into the
@@ -412,24 +633,42 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                         extra = f"**触发：** {reason}"
                         if escalation:
                             extra += f"\n**升级：** {escalation}"
-                        channel = _dispatch_alert(
-                            title="近期异常回撤",
-                            headline=headline,
-                            ctx=ctx,
-                            extra=extra,
-                            dry_run=dry_run,
-                        )
-                        if not dry_run:
-                            log.info(
-                                "已通过 %s 发送近期回撤提醒: %s", channel, state_key
+                        pending.append(
+                            ScanAlert(
+                                kind="pullback",
+                                market=market,
+                                code=snap.code,
+                                name=snap.name,
+                                title="近期异常回撤",
+                                headline=headline,
+                                ctx=ctx,
+                                summary_head=(
+                                    f"近3日 {_fmt_signed(ctx.day3)}"
+                                    f"　距20日高 {_fmt_signed(ctx.dd20)}"
+                                ),
+                                extra=extra,
+                                change_pct=snap.change_pct,
+                                sigma=sigma,
+                                severity=sigma_multiple(snap.change_pct, sigma) or 0.0,
+                                commit=(
+                                    lambda k=state_key, p=snap.price: state.mark_pullback(
+                                        k, p
+                                    )
+                                ),
                             )
-                            state.mark_pullback(state_key, snap.price)
-                        alerts += 1
+                        )
                     else:
                         log.info("近期回撤已提醒且未继续走弱，跳过 %s", state_key)
         except Exception as exc:
             errors += 1
             log.exception("处理 %s 失败: %s", state_key, exc)
+
+    alerts += _flush_scan_alerts(
+        pending,
+        peers=peers,
+        benchmarks=config.benchmarks,
+        dry_run=dry_run,
+    )
 
     log.info("完成：触发 %d 条，失败 %d 只", alerts, errors)
     if not dry_run:
