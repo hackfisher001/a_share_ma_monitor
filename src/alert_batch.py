@@ -50,16 +50,14 @@ class ScanAlert:
     def summary_lines(self) -> list[str]:
         """Compact multi-line entry used inside the aggregate card."""
         out = [f"**{self.name}({self.code})**　{self.summary_head}"]
-        facts: list[str] = []
-        if self.relative is not None:
-            beta = (
-                f"β{self.relative.beta:.2f}" if self.relative.beta is not None else "β—"
-            )
-            facts.append(f"超额 {self.relative.excess_pct:+.2f}%（{beta}）")
-        facts.append(f"阶段 {self.ctx.stage}")
-        facts.append(f"MA30 {self.ctx.ma_dev:+.1f}%")
+        facts = [
+            f"阶段 {self.ctx.stage}",
+            f"MA30 {self.ctx.ma_dev:+.1f}%",
+        ]
         if self.ctx.year_dd is not None:
             facts.append(f"距一年高 {self.ctx.year_dd:+.1f}%")
+        if self.relative is not None:
+            facts.append(f"超额 {self.relative.excess_pct:+.2f}%")
         out.append("　" + "｜".join(facts))
         if self.relative is not None and self.relative.idiosyncratic:
             out.append(f"　⚠️ {self.relative.verdict}")

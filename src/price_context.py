@@ -119,22 +119,19 @@ class PriceContext:
     spark: dict
 
     def markdown_block(self) -> str:
+        """Compact context for a 3-second Feishu glance.
+
+        Day/3-day returns and the 20-day drawdown used to sit here, but the
+        headline already carries today's move and the short window overlaps the
+        weekly number. Action boilerplate ("有钱就买") repeated on every card
+        and was dropped for the same reason.
+        """
         ma_dir = "上行" if self.ma_up else ("下行" if self.ma_up is False else "方向不明")
-        # 说「观察」等于没说。回测的结论是「有钱就投，别为等更低而留着」，
-        # 所以这里给的是执行口径，区别只在要不要额外加码。
-        observe = (
-            "上行趋势中的回撤，有待投现金可直接执行"
-            if self.watch_dip
-            else "趋势偏弱，按原计划金额买即可，不额外加码"
-        )
         return (
             f"**阶段：** {self.stage}\n"
-            f"**近期：** 日 {_fmt_pct(self.day1)}　3日 {_fmt_pct(self.day3)}　"
-            f"周 {_fmt_pct(self.week)}　月 {_fmt_pct(self.month)}\n"
-            f"**位置：** 距20日高 {_fmt_pct(self.dd20)}　"
-            f"距一年高 {_fmt_pct(self.year_dd)}　年位 {_fmt_pos(self.year_pos)}\n"
-            f"**均线：** MA30 {_fmt_pct(self.ma_dev)}（{ma_dir}）\n"
-            f"**解读：** {observe}"
+            f"**位置：** MA30 {_fmt_pct(self.ma_dev)}（{ma_dir}）　"
+            f"年位 {_fmt_pos(self.year_pos)}　距一年高 {_fmt_pct(self.year_dd)}\n"
+            f"**近期：** 周 {_fmt_pct(self.week)}　月 {_fmt_pct(self.month)}"
         )
 
     @property

@@ -83,7 +83,8 @@ def test_batch_card_flags_idiosyncratic_moves_only():
 
     assert md.count("⚠️") == 1
     assert "个股独有" in md
-    assert "β2.00" in md
+    assert "超额" in md
+    assert "β" not in md
 
 
 def test_mixed_kinds_are_counted_separately():

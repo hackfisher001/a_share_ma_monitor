@@ -58,7 +58,7 @@ def test_high_beta_selloff_is_not_called_idiosyncratic():
     assert move.beta == pytest.approx(2.0, rel=0.05)
     assert move.excess_pct == pytest.approx(0.0, abs=0.4)
     assert move.idiosyncratic is False
-    assert "系统性" in move.verdict
+    assert move.verdict == "与大盘同向"
 
 
 def test_a_drop_on_a_flat_market_is_idiosyncratic():
@@ -73,9 +73,11 @@ def test_a_drop_on_a_flat_market_is_idiosyncratic():
 
     assert move is not None
     assert move.idiosyncratic is True
-    assert "个股独有" in move.verdict
+    assert move.verdict == "个股独有"
     line = move.markdown_line()
-    assert "β1.9" in line and "常态残差" in line
+    assert "归因" in line and "纳指100ETF" in line and "超额" in line
+    assert "β" not in line and "常态残差" not in line
+    assert "建议先确认" not in line
 
 
 def test_idiosyncratic_is_judged_against_the_symbols_own_residual():

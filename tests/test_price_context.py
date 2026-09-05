@@ -71,6 +71,8 @@ def test_context_markdown_includes_stage_and_horizons():
     assert "近期" in md
     assert "距一年高" in md
     assert "MA30" in md
+    assert "解读" not in md
+    assert "距20日高" not in md
     assert len(ctx.spark["values"]) >= 250
 
 
@@ -140,16 +142,21 @@ def test_unparsable_mark_does_not_silence_the_alert():
     assert speak is True
 
 
-def test_reading_gives_an_execution_call_not_just_watch():
-    """The user asked for guidance they can act on; 「观察」 is not that."""
+def test_context_card_stays_compact_without_action_boilerplate():
+    """Action advice used to live on every card and fought the headline for space."""
     closes = [80.0 + i * 0.2 for i in range(260)]
     hist = _hist(closes)
     price = closes[-1]
     ctx = build_price_context(hist, price, sum(closes[-30:]) / 30)
     md = compose_alert_markdown("**测试**", ctx)
 
-    assert "解读" in md
-    assert "可直接执行" in md or "按原计划金额买" in md
+    assert "阶段：" in md and "位置：" in md and "近期：" in md
+    assert "解读" not in md
+    assert "可直接执行" not in md and "按原计划金额买" not in md
+    assert "日 " not in md and "3日" not in md
+    assert "距20日高" not in md
+    # Rising series → constructive trend; the flag itself still exists for callers.
+    assert ctx.watch_dip is True
 
 
 def test_sparkline_card_png_smoke():

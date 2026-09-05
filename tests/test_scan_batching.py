@@ -139,7 +139,9 @@ def test_a_lone_alert_still_gets_the_detailed_card(scan):
     _, sent, _ = scan(BASE, {"MU": -6.0})
 
     body = sent[0]["markdown"]
-    assert "阶段：" in body and "均线：" in body and "位置：" in body
+    assert "阶段：" in body and "位置：" in body and "近期：" in body
+    assert "解读" not in body and "档位" not in body
+    assert "若手头有机动资金" not in body
 
 
 def test_quiet_scan_sends_nothing(scan):
@@ -166,8 +168,8 @@ def test_benchmark_attribution_appears_on_the_card(scan):
     _, sent, _ = scan(BASE, {"MU": -6.0, "QQQM": -0.1})
 
     body = sent[0]["markdown"]
-    assert "基准" in body and "纳指100ETF" in body
-    assert "归因" in body
+    assert "归因" in body and "纳指100ETF" in body
+    assert "基准：" not in body and "β" not in body and "常态残差" not in body
 
 
 def test_muted_drawdown_bands_are_still_recorded(scan):

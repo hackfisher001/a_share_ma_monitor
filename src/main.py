@@ -483,7 +483,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
 
             # A same-session slide is the one thing that must interrupt you, so
             # it runs ahead of everything else and ignores action_only.
-            dip_levels, dip_source = dip_levels_for(item, config, bundle.hist)
+            dip_levels, _ = dip_levels_for(item, config, bundle.hist)
             if dip_levels:
                 # Keyed on the quote's own session date, not the local day.
                 already_dip = (
@@ -501,14 +501,12 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                             code=snap.code,
                             name=snap.name,
                             title=f"急跌提醒 · {band}",
-                            headline=dip.message,
+                            headline=dip.compact_headline(multiple),
                             ctx=ctx,
                             summary_head=(
-                                f"当日 {snap.change_pct:+.2f}%"
+                                f"{snap.change_pct:+.2f}%"
                                 + (f"（{multiple:.1f}σ）" if multiple else "")
-                                + f"　触发 {band}"
                             ),
-                            extra=f"**档位：** {band}（{dip_source}）",
                             change_pct=snap.change_pct,
                             sigma=sigma,
                             band_pct=dip.threshold_pct,

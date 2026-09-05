@@ -118,21 +118,21 @@ class RelativeMove:
     @property
     def verdict(self) -> str:
         if self.idiosyncratic:
-            return "个股独有，建议先确认有无消息面"
+            return "个股独有"
         if self.benchmark_change <= -1.0:
-            return "与大盘同向，属系统性下跌"
-        return "跌幅未明显超出大盘"
+            return "与大盘同向"
+        return "未明显超出大盘"
 
     def markdown_line(self) -> str:
-        beta = f"β{self.beta:.2f}" if self.beta is not None else "β—"
-        multiple = self.residual_multiple
-        excess = f"超额 {self.excess_pct:+.2f}%"
-        if multiple is not None:
-            excess += f"（{multiple:.1f}× 常态残差）"
+        """One line: conclusion + the two numbers that justify it.
+
+        β and residual-σ multiples are useful for debugging calibration, not for
+        a glance at the phone — they left the card on purpose.
+        """
         return (
-            f"**基准：** {self.benchmark_name} {self.benchmark_change:+.2f}%"
-            f"（{beta}）　{excess}\n"
             f"**归因：** {self.verdict}"
+            f"（{self.benchmark_name} {self.benchmark_change:+.2f}%，"
+            f"超额 {self.excess_pct:+.2f}%）"
         )
 
 

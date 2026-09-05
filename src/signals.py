@@ -99,18 +99,29 @@ class IntradayDipSignal:
     def title(self) -> str:
         return f"急跌提醒 · -{self.threshold_pct:g}%"
 
+    def compact_headline(self, sigma_multiple: float | None = None) -> str:
+        """One-line lead: who, how much, how unusual, at what price.
+
+        Threshold / year-drawdown / action boilerplate used to live here and
+        were all repeated by the context block that follows, so they left.
+        """
+        basis = "盘中" if self.live else "最新收盘"
+        sigma = (
+            f"（{sigma_multiple:.1f}σ）"
+            if sigma_multiple is not None and sigma_multiple > 0
+            else ""
+        )
+        line = (
+            f"**{self.name}({self.code})** {basis}急跌 "
+            f"**{self.change_pct:+.2f}%**{sigma}　现价 **{self.price:.2f}**"
+        )
+        if not self.live:
+            line += "\n（未取到实时价，以上为最近一个收盘价）"
+        return line
+
     @property
     def message(self) -> str:
-        basis = "盘中" if self.live else "最新收盘"
-        stale = "" if self.live else "\n（未取到实时价，以上为最近一个收盘价）"
-        return (
-            f"**{self.name}({self.code})** {basis}急跌\n"
-            f"现价 **{self.price:.2f}**　当日 **{self.change_pct:+.2f}%**"
-            f"（阈值 -{self.threshold_pct:g}%）\n"
-            f"距一年高点 **{self.year_drawdown_pct:+.2f}%**\n"
-            f"若手头有机动资金，这是可考虑加一笔的时点；无资金则不必动。\n"
-            f"日线截至 {self.as_of}{stale}"
-        ).strip()
+        return self.compact_headline()
 
 
 def crossed_intraday_dip_levels(
