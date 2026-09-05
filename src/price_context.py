@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 import pandas as pd
 
@@ -12,6 +13,8 @@ MIN_HISTORY_FOR_RECENT = 80
 RECENT_PERCENTILE = 10.0
 MIN_3D_DROP_PCT = -2.0
 MIN_20D_DROP_PCT = -5.0
+# 距上次提醒再跌这么多就重提，即使还在冷却期内
+DEFAULT_DEEPEN_PCT = 3.0
 
 
 def _fmt_pct(v: float | None) -> str:
@@ -117,7 +120,13 @@ class PriceContext:
 
     def markdown_block(self) -> str:
         ma_dir = "上行" if self.ma_up else ("下行" if self.ma_up is False else "方向不明")
-        observe = "趋势中的回撤，可观察" if self.watch_dip else "偏弱回撤，先观察不急加"
+        # 说「观察」等于没说。回测的结论是「有钱就投，别为等更低而留着」，
+        # 所以这里给的是执行口径，区别只在要不要额外加码。
+        observe = (
+            "上行趋势中的回撤，有待投现金可直接执行"
+            if self.watch_dip
+            else "趋势偏弱，按原计划金额买即可，不额外加码"
+        )
         return (
             f"**阶段：** {self.stage}\n"
             f"**近期：** 日 {_fmt_pct(self.day1)}　3日 {_fmt_pct(self.day3)}　"
@@ -233,3 +242,43 @@ def detect_recent_pullback(
     if not reasons:
         return False, ""
     return True, "；".join(reasons)
+
+
+def should_realert_pullback(
+    mark: dict,
+    *,
+    price: float,
+    cooldown_days: int,
+    deepen_pct: float = DEFAULT_DEEPEN_PCT,
+    today: date | None = None,
+) -> tuple[bool, str]:
+    """Decide whether a still-active pullback should speak up again.
+
+    A flat cooldown alone is wrong here. The signal can fire on a shallow dip
+    that recovers the same day, and would then stay muted for the rest of the
+    window — exactly when a genuine slide deserves attention. So a repeat is
+    allowed as soon as price drops `deepen_pct` below the last alerted price,
+    regardless of the cooldown.
+    """
+    if not mark:
+        return True, ""
+    try:
+        prior = float(mark.get("price") or 0.0)
+    except (TypeError, ValueError):
+        prior = 0.0
+    if prior > 0 and price > 0:
+        drop = (price / prior - 1.0) * 100.0
+        if drop <= -abs(deepen_pct):
+            return True, f"较上次提醒（{prior:.2f}）又跌 {abs(drop):.1f}%"
+
+    last = str(mark.get("date") or "")
+    if not last:
+        return True, ""
+    try:
+        last_day = date.fromisoformat(last)
+    except ValueError:
+        return True, ""
+    elapsed = ((today or date.today()) - last_day).days
+    if elapsed >= max(0, int(cooldown_days)):
+        return True, ""
+    return False, ""

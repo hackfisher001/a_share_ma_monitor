@@ -23,7 +23,7 @@ class AlertState:
         self._data: dict = {
             "date": _today(),
             "alerted": [],
-            "cooldown": {},
+            "pullback_marks": {},
             "drawdown_fired": {},
             "t_sleeve": {},
             "pending_actions": {},
@@ -39,8 +39,8 @@ class AlertState:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return
-        # Cooldown + drawdown episode flags must outlive the daily reset.
-        cooldown = {str(k): str(v) for k, v in (raw.get("cooldown") or {}).items()}
+        # Pullback marks + drawdown episode flags must outlive the daily reset.
+        pullback_marks = self._read_pullback_marks(raw)
         fired_raw = raw.get("drawdown_fired") or {}
         drawdown_fired: dict[str, list[float]] = {}
         for key, levels in fired_raw.items():
@@ -79,13 +79,34 @@ class AlertState:
         self._data = {
             "date": _today(),
             "alerted": alerted,
-            "cooldown": cooldown,
+            "pullback_marks": pullback_marks,
             "drawdown_fired": drawdown_fired,
             "t_sleeve": sleeves,
             "pending_actions": pending,
             "intraday_fired": intraday,
             "health": dict(raw.get("health") or {}),
         }
+
+    @staticmethod
+    def _read_pullback_marks(raw: dict) -> dict[str, dict]:
+        """Read pullback marks, absorbing the older date-only `cooldown` section.
+
+        Legacy entries carry no price, so they anchor the elapsed-time check only
+        and let the first deepening comparison pass. Dropping them instead would
+        replay one stale alert per symbol on upgrade.
+        """
+        marks: dict[str, dict] = {}
+        for key, value in (raw.get("cooldown") or {}).items():
+            marks[str(key)] = {"date": str(value), "price": 0.0}
+        for key, entry in (raw.get("pullback_marks") or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                price = float(entry.get("price") or 0.0)
+            except (TypeError, ValueError):
+                price = 0.0
+            marks[str(key)] = {"date": str(entry.get("date") or ""), "price": price}
+        return marks
 
     def save(self) -> None:
         self.path.write_text(
@@ -103,18 +124,15 @@ class AlertState:
         self._data["date"] = _today()
         self.save()
 
-    def in_cooldown(self, key: str, days: int) -> bool:
-        last = self._data["cooldown"].get(str(key))
-        if not last:
-            return False
-        try:
-            last_day = date.fromisoformat(last)
-        except ValueError:
-            return False
-        return (date.today() - last_day).days < max(0, int(days))
+    def pullback_mark(self, key: str) -> dict:
+        """When this symbol's pullback last alerted, and at what price."""
+        return dict(self._data["pullback_marks"].get(str(key)) or {})
 
-    def mark_cooldown(self, key: str) -> None:
-        self._data["cooldown"][str(key)] = _today()
+    def mark_pullback(self, key: str, price: float) -> None:
+        self._data["pullback_marks"][str(key)] = {
+            "date": _today(),
+            "price": float(price),
+        }
         self._data["date"] = _today()
         self.save()
 

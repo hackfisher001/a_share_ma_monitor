@@ -1,9 +1,8 @@
-"""Daily / weekly / monthly Feishu reports with optional DeepSeek commentary."""
+"""Daily / weekly / monthly Feishu reports."""
 
 from __future__ import annotations
 
 import logging
-import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -12,7 +11,6 @@ from src.action_digest import positions_markdown
 from src.digest import MARKET_TITLE, collect_bundles
 from src.dividends import income_markdown, load_profile
 from src.fetch_quotes import QuoteBundle
-from src.llm import chat, deepseek_enabled
 from src.notify import send_alert
 from src.trades import TradeLedger
 from src.perf import (
@@ -43,44 +41,6 @@ THEME_LABELS = {
 CN_STOCK_THEME = "stock"
 CN_ETF_TITLE = "A股ETF"
 CN_STOCK_TITLE = "A股个股"
-
-_SCAN_FORMAT = (
-    "\n\n输出必须严格采用下面五块，块标题单独一行，不得增加其他板块：\n"
-    "🔎 **一句话结论**\n"
-    "只写一句，概括当前主趋势、最明显的强弱分化。\n"
-    "🔥 **领涨与强势**\n"
-    "- 只列最值得注意的 2～3 个强势标的，每条必须带周期和涨幅。\n"
-    "❄️ **走弱与异常**\n"
-    "- 只列最值得注意的 2～3 个弱势或急跌标的，区分持续走弱、上涨后回吐、下跌后反弹。\n"
-    "📍 **阶段与位置**\n"
-    "- 只列 2～3 个处于典型阶段的标的，用 MA30、年位、距一年高点解释，不重复涨跌榜。\n"
-    "🎯 **行动优先级**\n"
-    "- 第一行写“优先观察：…”，第二行写“保持不动：…”，说明理由；不预测、不报买卖点。\n"
-    "硬性要求：总字数 260～380 字；每条一行；先结论后证据；"
-    "不要逐个复述全部标的，不要使用空泛措辞，不要重复同一个数字；最后一行写免责声明。"
-)
-
-
-SYSTEM_PROMPTS = {
-    "daily": (
-        "你是个人长线投资助手。根据给定的持仓行情事实写中文日报点评。\n"
-        "优先判断近1日、1周、1月是否同向，以及板块相对强弱；"
-        "一年位置只用于判断所处阶段。只基于数据，不编造新闻、舆情或基本面。"
-    )
-    + _SCAN_FORMAT,
-    "weekly": (
-        "你是个人长线投资助手。根据给定的持仓行情事实写中文周报点评。\n"
-        "优先判断近1周、1月、3月的趋势延续或反转，比较科技、宽基和行业轮动。"
-        "只基于数据，不编造新闻、舆情或基本面。"
-    )
-    + _SCAN_FORMAT,
-    "monthly": (
-        "你是个人长线投资助手。根据给定的持仓行情事实写中文月报点评。\n"
-        "优先判断近1月、3月、1年的趋势层级，比较板块轮动与历史位置。"
-        "只基于数据，不编造新闻、舆情或基本面。"
-    )
-    + _SCAN_FORMAT,
-}
 
 
 def _drawdown_line(bundle: QuoteBundle) -> str:
@@ -363,181 +323,17 @@ def _market_header(kind: str, bundles: list[QuoteBundle]) -> str:
     )
 
 
-def _compact_market_markdown(bundles: list[QuoteBundle]) -> str:
-    """A phone-sized daily scan: only the biggest changes make the cut."""
-    ranked: list[tuple[QuoteBundle, float]] = []
-    for bundle in bundles:
-        change = change_by_trading_days(bundle.hist, bundle.price, 1)
-        if change is not None:
-            ranked.append((bundle, change))
-    if not ranked:
-        return "行情摘要：数据不足，今天不强行讲段子。"
-    ranked.sort(key=lambda row: row[1], reverse=True)
-    winners = ranked[:2]
-    losers = list(reversed(ranked[-2:]))
-    fmt = lambda rows: "；".join(
-        f"{b.name} {value:+.2f}%" for b, value in rows
-    )
-    return (
-        f"**强势：** {fmt(winners)}\n"
-        f"**偏弱：** {fmt(losers)}\n"
-        "其余标的今日没有挤进重点名单，允许它们安静一天。"
-    )
-
-
-def _sector_board(bundles: list[QuoteBundle], kind: str) -> list[str]:
-    """Relative strength board for CN ETFs."""
-    etfs = [b for b in bundles if b.market == "cn" and b.theme != CN_STOCK_THEME]
-    if not etfs:
-        return []
-    horizon = "1周" if kind != "daily" else "1日"
-    rows: list[tuple[str, str, float]] = []
-    for b in etfs:
-        if kind == "monthly":
-            val = change_by_calendar_days(b.hist, b.price, 30)
-            horizon = "1月"
-        elif kind == "weekly":
-            val = change_by_calendar_days(b.hist, b.price, 7)
-            horizon = "1周"
-        else:
-            val = change_by_trading_days(b.hist, b.price, 1)
-            horizon = "1日"
-        if val is None:
-            continue
-        label = THEME_LABELS.get(b.theme, b.theme)
-        rows.append((f"{b.name}({b.code})", label, val))
-    if not rows:
-        return ["板块ETF榜: 数据不足"]
-    rows.sort(key=lambda x: x[2], reverse=True)
-    top = rows[:5]
-    bottom = list(reversed(rows[-5:]))
-    lines = [f"A股ETF强弱榜（按{horizon}）:"]
-    lines.append(
-        "偏强: " + "；".join(f"{n}[{t}] {_fmt_pct(v)}" for n, t, v in top)
-    )
-    lines.append(
-        "偏弱: " + "；".join(f"{n}[{t}] {_fmt_pct(v)}" for n, t, v in bottom)
-    )
-    tech = [r for r in rows if "科技" in r[1] or r[1] == "跨境纳指ETF"]
-    if tech:
-        tech_sorted = sorted(tech, key=lambda x: x[2], reverse=True)
-        lines.append(
-            "科技相关排序: "
-            + "；".join(f"{n} {_fmt_pct(v)}" for n, _, v in tech_sorted)
-        )
-    return lines
-
-
-def _sharp_drop_board(bundles: list[QuoteBundle], top_n: int = 5) -> list[str]:
-    """Rank names by worst 1d / 3d / 1w moves for the LLM."""
-    rows: list[tuple[str, float, str]] = []
-    for b in bundles:
-        st = _short_term_moves(b)
-        for label, val in st.items():
-            if val is not None and val < 0:
-                rows.append((f"{b.name}({b.code})", val, label))
-    lines: list[str] = []
-    for label in ("1日", "3日", "1周"):
-        subset = sorted([r for r in rows if r[2] == label], key=lambda x: x[1])[:top_n]
-        if not subset:
-            lines.append(f"急跌榜/{label}: 无下跌标的")
-            continue
-        parts = [f"{name} {val:+.2f}%" for name, val, _ in subset]
-        lines.append(f"急跌榜/{label}: " + "；".join(parts))
-    return lines
-
-
-def _stage_label(bundle: QuoteBundle) -> str:
-    """Compact, deterministic path label to prevent vague model commentary."""
-    week = change_by_calendar_days(bundle.hist, bundle.price, 7)
-    month = change_by_calendar_days(bundle.hist, bundle.price, 30)
-    if week is None or month is None:
-        return "数据不足"
-    ma_dev = (bundle.price - bundle.ma30) / bundle.ma30 * 100
-    if month >= 0 and week >= 0:
-        return "持续走强" if ma_dev >= 0 else "反弹但仍在MA30下"
-    if month >= 0 and week < 0:
-        return "月内上涨、近周回吐"
-    if month < 0 and week >= 0:
-        return "月内偏弱、近周反弹"
-    return "持续走弱" if ma_dev < 0 else "回调但仍在MA30上"
-
-
-def _facts_for_llm(kind: str, bundles: list[QuoteBundle]) -> str:
-    today = date.today().isoformat()
-    lines = [f"报告类型: {kind}", f"日期: {today}", f"标的数: {len(bundles)}", ""]
-    lines.extend(_sector_board(bundles, kind))
-    lines.append("")
-    if kind in {"daily", "weekly"}:
-        lines.extend(_sharp_drop_board(bundles))
-        lines.append("")
-    for b in bundles:
-        ma_dev = (b.price - b.ma30) / b.ma30 * 100
-        position, dd = _year_position(b)
-        theme = THEME_LABELS.get(b.theme, b.theme or "其他")
-        chg = (
-            f"1日={_fmt_pct(change_by_trading_days(b.hist, b.price, 1))}, "
-            f"1周={_fmt_pct(change_by_calendar_days(b.hist, b.price, 7))}, "
-            f"1月={_fmt_pct(change_by_calendar_days(b.hist, b.price, 30))}, "
-            f"3月={_fmt_pct(change_by_calendar_days(b.hist, b.price, 91))}, "
-            f"1年={_fmt_pct(change_by_calendar_days(b.hist, b.price, 365))}"
-        )
-        lines.append(
-            f"- [{theme}/{b.market}] {b.name}({b.code}) 价={b.price:.2f} "
-            f"阶段={_stage_label(b)} MA30偏离={ma_dev:+.2f}% "
-            f"年位={_fmt_position(position)} 距一年高点={_fmt_pct(dd)} | {chg}"
-        )
-    return "\n".join(lines)
-
-
-def _llm_comment(kind: str, bundles: list[QuoteBundle]) -> str | None:
-    if not deepseek_enabled():
-        log.info("未配置 DEEPSEEK_API_KEY，跳过模型点评")
-        return None
-    try:
-        return chat(SYSTEM_PROMPTS[kind], _facts_for_llm(kind, bundles))
-    except Exception as exc:
-        log.exception("DeepSeek 点评失败: %s", exc)
-        return f"（模型点评暂不可用：{exc}）"
-
-
-_COMMENT_HEADINGS = {
-    "一句话结论": ("🔎", "blue"),
-    "领涨与强势": ("🔥", "orange"),
-    "走弱与异常": ("❄️", "red"),
-    "阶段与位置": ("📍", "purple"),
-    "行动优先级": ("🎯", "blue"),
-}
-
-
-def _style_comment(comment: str) -> str:
-    """Apply consistent visual hierarchy even if the model varies markdown."""
-    output: list[str] = []
-    for raw in (comment or "").splitlines():
-        line = raw.strip()
-        matched = False
-        for heading, (icon, color) in _COMMENT_HEADINGS.items():
-            if heading in line and len(re.sub(r"[*#：:\s]", "", line)) <= len(heading) + 3:
-                output.append(f"<font color='{color}'>**{icon} {heading}**</font>")
-                matched = True
-                break
-        if not matched:
-            output.append(line)
-    return "\n".join(output).strip()
-
-
 def run_report(
     stocks: list[dict],
     kind: str = "daily",
     *,
     dry_run: bool = False,
     markets: list[str] | None = None,
-    compact: bool = False,
     action_markdown: str | None = None,
     ledger: TradeLedger | None = None,
     income_codes: set[str] | None = None,
 ) -> int:
-    """kind: daily | weekly | monthly — market data cards + one DeepSeek summary."""
+    """kind: daily | weekly | monthly — market data cards."""
     kind = (kind or "daily").strip().lower()
     if kind not in REPORT_TITLES:
         raise ValueError(f"未知报告类型: {kind}")
@@ -568,35 +364,25 @@ def run_report(
         all_bundles.extend(bundles)
 
         market_label = MARKET_TITLE.get(market, market.upper()).replace("日报", "")
-        if compact and kind == "daily":
-            title = f"持仓日报 · {market_label}压缩版"
-            markdown = _compact_market_markdown(bundles)
-            if errors:
-                markdown += "\n**数据异常：** " + ", ".join(errors)
-            if dry_run:
-                log.info("[dry-run] %s\n%s", title, markdown)
-            else:
-                channel = send_alert(title=title, markdown=markdown)
-                log.info("已通过 %s 发送 %s", channel, title)
-            sent += 1
-            continue
         groups: list[tuple[str, list[QuoteBundle], str | None]]
         if market == "cn":
-            stocks, etfs = _split_cn_bundles(bundles)
+            # NOTE: do not name these `stocks` — that would shadow the watchlist
+            # dicts and crash the *next* market's collect_bundles call.
+            cn_stocks, cn_etfs = _split_cn_bundles(bundles)
             groups = []
-            if stocks:
+            if cn_stocks:
                 groups.append(
                     (
                         f"{REPORT_TITLES[kind]} · {CN_STOCK_TITLE}",
-                        stocks,
+                        cn_stocks,
                         CN_STOCK_TITLE,
                     )
                 )
-            if etfs:
+            if cn_etfs:
                 groups.append(
                     (
                         f"{REPORT_TITLES[kind]} · {CN_ETF_TITLE}",
-                        etfs,
+                        cn_etfs,
                         CN_ETF_TITLE,
                     )
                 )
@@ -658,17 +444,8 @@ def run_report(
                 log.info("已通过 %s 发送 %s", channel, title)
             sent += 1
 
-    if all_bundles and not (compact and kind == "daily"):
-        comment = _llm_comment(kind, all_bundles)
-        if comment:
-            title = f"{REPORT_TITLES[kind]} · DeepSeek 点评"
-            md = _style_comment(comment)
-            if dry_run:
-                log.info("[dry-run] %s\n%s", title, md)
-            else:
-                channel = send_alert(title=title, markdown=md)
-                log.info("已通过 %s 发送 %s", channel, title)
-            sent += 1
-
     log.info("%s完成：发送 %d 组，全失败市场 %d", REPORT_TITLES[kind], sent, fail_markets)
-    return 1 if sent == 0 else 0
+    # Failure means the data was unusable, not that there was nothing to say.
+    # The trimmed daily push legitimately sends nothing when no dividend or
+    # holding applies, and that must not show up in cron as an error.
+    return 1 if fail_markets else 0

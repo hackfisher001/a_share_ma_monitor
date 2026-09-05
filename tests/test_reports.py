@@ -7,12 +7,10 @@ from src.reports import (
     CN_ETF_TITLE,
     CN_STOCK_TITLE,
     _build_tables,
-    _facts_for_llm,
     _row_daily,
     _split_cn_bundles,
-    _stage_label,
-    _style_comment,
     _year_position,
+    run_report,
 )
 
 
@@ -95,35 +93,23 @@ def test_tables_rank_stronger_recent_performance_first():
     assert "按近1月强→弱" in tables[0]["title"]
 
 
-def test_stage_label_distinguishes_direction_changes():
-    rising = _bundle("持续上涨", "600001", 80.0, 120.0)
-    falling = _bundle("持续下跌", "600002", 120.0, 80.0)
+def test_run_report_handles_multiple_markets(monkeypatch):
+    """Regression: the CN branch used to rebind `stocks` to QuoteBundles, which
+    crashed the *next* market's collect_bundles with AttributeError. Only shows
+    when one report covers more than one market."""
+    import src.reports as reports
 
-    assert _stage_label(rising) == "持续走强"
-    assert _stage_label(falling) == "持续走弱"
+    def fake_collect(stocks, market_filter=None):
+        theme = "stock" if market_filter == "cn" else "nasdaq_us"
+        return [_bundle("测试", "X1", 80.0, 120.0)], []
 
+    monkeypatch.setattr(reports, "collect_bundles", fake_collect)
+    monkeypatch.setattr(reports, "send_alert", lambda **kw: "feishu")
 
-def test_llm_facts_include_full_horizons_and_stage():
-    facts = _facts_for_llm("daily", [_bundle("测试股票", "600000", 80.0, 120.0)])
+    watchlist = [
+        {"code": "600036", "name": "招商银行", "market": "cn", "theme": "stock"},
+        {"code": "QQQM", "name": "纳指100ETF", "market": "us", "theme": "nasdaq_us"},
+    ]
+    exit_code = run_report(watchlist, "daily", dry_run=True, markets=["cn", "us"])
 
-    assert "阶段=持续走强" in facts
-    assert "1日=" in facts
-    assert "1周=" in facts
-    assert "1月=" in facts
-    assert "3月=" in facts
-    assert "1年=" in facts
-    assert "年位=" in facts
-
-
-def test_style_comment_applies_colored_visual_hierarchy():
-    raw = (
-        "🔎 **一句话结论**\n科技领涨，消费走弱。\n"
-        "🔥 **领涨与强势**\n- 芯片近月上涨。\n"
-        "❄️ **走弱与异常**\n- 白酒持续偏弱。"
-    )
-    styled = _style_comment(raw)
-
-    assert "<font color='blue'>**🔎 一句话结论**</font>" in styled
-    assert "<font color='orange'>**🔥 领涨与强势**</font>" in styled
-    assert "<font color='red'>**❄️ 走弱与异常**</font>" in styled
-    assert "- 芯片近月上涨。" in styled
+    assert exit_code == 0

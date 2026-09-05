@@ -33,6 +33,7 @@ from src.price_context import (
     build_price_context,
     compose_alert_markdown,
     detect_recent_pullback,
+    should_realert_pullback,
 )
 from src.reports import run_report
 from src.signals import (
@@ -387,31 +388,45 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                         state.mark_drawdown_level(state_key, level)
                     alerts += 1
 
+            # Deliberately outside action_only: a dip is only worth telling you
+            # about while you can still place the order, so folding it into the
+            # evening digest is the same as dropping it.
             if config.recent_pullback:
                 hit, reason = detect_recent_pullback(
                     bundle.hist,
                     bundle.price,
                     percentile=config.recent_pullback_percentile,
                 )
-                cooldown_key = f"recent:{state_key}"
-                if hit and not config.action_only and (force or not state.in_cooldown(cooldown_key, config.recent_pullback_cooldown_days)):
-                    headline = (
-                        f"**{snap.name}({snap.code})** 出现近期异常回撤\n"
-                        f"现价 **{snap.price:.2f}**　日线截至 {snap.as_of}"
+                if hit:
+                    mark = {} if force else state.pullback_mark(state_key)
+                    speak, escalation = should_realert_pullback(
+                        mark,
+                        price=snap.price,
+                        cooldown_days=config.recent_pullback_cooldown_days,
                     )
-                    channel = _dispatch_alert(
-                        title="近期异常回撤",
-                        headline=headline,
-                        ctx=ctx,
-                        extra=f"**触发：** {reason}",
-                        dry_run=dry_run,
-                    )
-                    if not dry_run:
-                        log.info("已通过 %s 发送近期回撤提醒: %s", channel, state_key)
-                        state.mark_cooldown(cooldown_key)
-                    alerts += 1
-                elif hit:
-                    log.info("近期回撤仍在冷却期，跳过 %s", state_key)
+                    if speak:
+                        headline = (
+                            f"**{snap.name}({snap.code})** 出现近期异常回撤\n"
+                            f"现价 **{snap.price:.2f}**　日线截至 {snap.as_of}"
+                        )
+                        extra = f"**触发：** {reason}"
+                        if escalation:
+                            extra += f"\n**升级：** {escalation}"
+                        channel = _dispatch_alert(
+                            title="近期异常回撤",
+                            headline=headline,
+                            ctx=ctx,
+                            extra=extra,
+                            dry_run=dry_run,
+                        )
+                        if not dry_run:
+                            log.info(
+                                "已通过 %s 发送近期回撤提醒: %s", channel, state_key
+                            )
+                            state.mark_pullback(state_key, snap.price)
+                        alerts += 1
+                    else:
+                        log.info("近期回撤已提醒且未继续走弱，跳过 %s", state_key)
         except Exception as exc:
             errors += 1
             log.exception("处理 %s 失败: %s", state_key, exc)
@@ -426,7 +441,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="股价监控：MA30 + 多档回撤 + 日/周/月报（DeepSeek 点评）"
+        description="股价监控：MA30 + 多档回撤 + 日/周/月报"
     )
     parser.add_argument("-c", "--config", default=str(ROOT / "watchlist.yaml"))
     parser.add_argument("--dry-run", action="store_true", help="只计算，不发 Webhook")
@@ -450,17 +465,12 @@ def main() -> None:
     parser.add_argument(
         "--report",
         choices=["daily", "weekly", "monthly"],
-        help="发送持仓报告：daily / weekly / monthly（含 DeepSeek 点评）",
+        help="发送持仓报告：daily / weekly / monthly",
     )
     parser.add_argument(
         "--market",
         default="all",
         help="报告市场过滤：all / cn / hk / us（可逗号分隔）",
-    )
-    parser.add_argument(
-        "--full-report",
-        action="store_true",
-        help="日报发送完整标的表；默认只发送行动清单与强弱摘要",
     )
     parser.add_argument(
         "--record-trade",
@@ -553,7 +563,6 @@ def main() -> None:
                 kind=report_kind,
                 dry_run=args.dry_run,
                 markets=markets,
-                compact=(report_kind == "daily" and not args.full_report),
                 action_markdown=action_md if report_kind == "daily" else None,
                 ledger=ledger,
                 income_codes=income_codes,

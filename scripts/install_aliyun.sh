@@ -48,11 +48,11 @@ echo "*/30 0-3 * * 2-6 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.
 # 心跳：每天固定说一句话，让「没消息」和「挂了」能区分开；同时备份状态文件
 echo "0 21 * * * cd ${ROOT} && ./scripts/run_once.sh --heartbeat >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 
-# A股日报：收盘后（含 DeepSeek 点评）
-echo "10 16 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh --report daily --market cn >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
-
-# 美股日报：美股收盘后（北京时间次日清晨，含周六看周五）
-echo "30 6 * * 2-6 cd ${ROOT} && ./scripts/run_once.sh --report daily --market us >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
+# 日报：A股收盘后一条，覆盖全部市场。
+# 只推股息率与持仓成本这类慢变量——盘中提醒已经覆盖了当天该操作的事，
+# 收盘后再复述一遍行情属于事后视角。原先按市场拆成两条，美股那条在砍掉
+# 行情摘要后没有任何内容可发（股息率仅 A 股），所以合并。
+echo "10 16 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh --report daily >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 
 # 周报：每周日晚上
 echo "0 20 * * 0 cd ${ROOT} && ./scripts/run_once.sh --report weekly >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"

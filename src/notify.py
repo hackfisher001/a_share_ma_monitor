@@ -31,7 +31,7 @@ def _post_json(url: str, payload: dict, timeout: float = 15.0) -> None:
 def _header_template(title: str) -> str:
     if "周报" in title or "月报" in title:
         return "purple"
-    if "日报" in title or "DeepSeek" in title or "板块" in title:
+    if "日报" in title or "板块" in title:
         return "blue"
     if "超过" in title or "30%" in title or "40%" in title or "50%" in title:
         return "red"
