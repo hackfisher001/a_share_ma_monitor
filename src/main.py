@@ -38,6 +38,7 @@ from src.dip_bands import (
     sigma_multiple,
 )
 from src.notify import send_alert, send_test_ping
+from src.etf_premium import lookup_premium
 from src.relative import DEFAULT_BENCHMARKS, compare_to_benchmark
 from src.ops import heartbeat_markdown, snapshot_state
 from src.price_context import (
@@ -257,6 +258,7 @@ def _flush_scan_alerts(
     peers: dict[str, tuple[str, float | None, pd.DataFrame | None]],
     benchmarks: dict[str, str],
     dry_run: bool,
+    premium_codes: set[str] | None = None,
 ) -> int:
     """Send each alert as its own card, sparkline included.
 
@@ -269,6 +271,7 @@ def _flush_scan_alerts(
     if not alerts:
         return 0
 
+    premium_codes = premium_codes or set()
     for alert in alerts:
         entry = peers.get(alert.key)
         alert.relative = compare_to_benchmark(
@@ -282,14 +285,18 @@ def _flush_scan_alerts(
 
     display = dedupe_for_display(alerts)
     for alert in sort_alerts(display):
-        extra = alert.extra
+        parts = [p for p in (alert.extra,) if p]
         if alert.relative is not None:
-            extra = "\n".join(p for p in (extra, alert.relative.markdown_line()) if p)
+            parts.append(alert.relative.markdown_line())
+        if alert.code.zfill(6) in premium_codes:
+            quote = lookup_premium(alert.code)
+            if quote is not None:
+                parts.append(quote.markdown_line())
         channel = _dispatch_alert(
             title=alert.title,
             headline=alert.headline,
             ctx=alert.ctx,
-            extra=extra,
+            extra="\n".join(parts),
             dry_run=dry_run,
             chart_title=alert.name,
         )
@@ -406,6 +413,11 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
     # in the same pass.
     pending: list[ScanAlert] = []
     peers: dict[str, tuple[str, float | None, pd.DataFrame | None]] = {}
+    premium_codes = {
+        str(s.get("code", "")).strip().zfill(6)
+        for s in stocks
+        if s.get("premium") and str(s.get("market") or "cn").lower() == "cn"
+    }
 
     for item in stocks:
         code = str(item.get("code", "")).strip()
@@ -430,8 +442,11 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
             )
             sigma = daily_sigma(bundle.hist)
             peers[state_key] = (snap.name, snap.change_pct, bundle.hist)
+            premium = (
+                lookup_premium(snap.code) if snap.code.zfill(6) in premium_codes else None
+            )
             log.info(
-                "[%s] %s(%s) price=%.2f ma30=%.2f dev=%+.2f%% 距一年高点=%+.2f%% σ=%s 阶段=%s",
+                "[%s] %s(%s) price=%.2f ma30=%.2f dev=%+.2f%% 距一年高点=%+.2f%% σ=%s%s 阶段=%s",
                 market.upper(),
                 snap.name,
                 snap.code,
@@ -440,6 +455,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
                 (snap.price - snap.ma30) / snap.ma30 * 100,
                 drawdown,
                 f"{sigma:.2f}%" if sigma is not None else "—",
+                f" 溢价={premium.premium_pct:+.1f}%" if premium else "",
                 ctx.stage,
             )
 
@@ -628,6 +644,7 @@ def run_ma_scan(watchlist_path: Path, dry_run: bool = False, force: bool = False
         peers=peers,
         benchmarks=config.benchmarks,
         dry_run=dry_run,
+        premium_codes=premium_codes,
     )
 
     log.info("完成：触发 %d 条，失败 %d 只", alerts, errors)
@@ -756,6 +773,16 @@ def main() -> None:
         income_codes = {
             str(s.get("code", "")).strip() for s in stocks if s.get("income")
         }
+        premium_codes = {
+            str(s.get("code", "")).strip().zfill(6)
+            for s in stocks
+            if s.get("premium") and str(s.get("market") or "cn").lower() == "cn"
+        }
+        premiums = {}
+        for code in premium_codes:
+            quote = lookup_premium(code)
+            if quote is not None:
+                premiums[code] = quote
         raise SystemExit(
             run_report(
                 stocks,
@@ -765,6 +792,7 @@ def main() -> None:
                 action_markdown=action_md if report_kind == "daily" else None,
                 ledger=ledger,
                 income_codes=income_codes,
+                premiums=premiums,
             )
         )
 

@@ -93,6 +93,22 @@ def test_tables_rank_stronger_recent_performance_first():
     assert "按近1月强→弱" in tables[0]["title"]
 
 
+def test_daily_row_annotates_premium_under_price():
+    from src.etf_premium import PremiumQuote
+    from src.reports import _row_daily, _row_for
+
+    bundle = _bundle("纳指科技ETF", "159509", 2.0, 2.8)
+    bundle.theme = "nasdaq_cn"
+    premiums = {
+        "159509": PremiumQuote("159509", "纳指科技ETF", 2.8, 2.2, 27.3)
+    }
+    row = _row_for("daily", bundle, premiums)
+    assert "溢价 +27.3%" in row["price"]
+    # Untagged symbols stay plain.
+    plain = _row_for("daily", _bundle("沪深300ETF", "510300", 4.0, 4.6), premiums)
+    assert "溢价" not in plain["price"]
+
+
 def test_run_report_handles_multiple_markets(monkeypatch):
     """Regression: the CN branch used to rebind `stocks` to QuoteBundles, which
     crashed the *next* market's collect_bundles with AttributeError. Only shows

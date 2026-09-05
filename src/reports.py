@@ -10,6 +10,7 @@ from typing import Any
 from src.action_digest import positions_markdown
 from src.digest import MARKET_TITLE, collect_bundles
 from src.dividends import income_markdown, load_profile
+from src.etf_premium import PremiumQuote
 from src.fetch_quotes import QuoteBundle
 from src.notify import send_alert
 from src.trades import TradeLedger
@@ -225,12 +226,22 @@ def _columns_for(kind: str) -> list[dict[str, str]]:
     ]
 
 
-def _row_for(kind: str, bundle: QuoteBundle) -> dict[str, Any]:
+def _row_for(
+    kind: str,
+    bundle: QuoteBundle,
+    premiums: dict[str, PremiumQuote] | None = None,
+) -> dict[str, Any]:
     if kind == "weekly":
-        return _row_weekly(bundle)
-    if kind == "monthly":
-        return _row_monthly(bundle)
-    return _row_daily(bundle)
+        row = _row_weekly(bundle)
+    elif kind == "monthly":
+        row = _row_monthly(bundle)
+    else:
+        row = _row_daily(bundle)
+    quote = (premiums or {}).get(str(bundle.code).zfill(6))
+    if quote is not None:
+        # Traded price is only meaningful next to how far it sits above IOPV.
+        row["price"] = f"{bundle.price:.2f}\n{quote.short_label()}"
+    return row
 
 
 def _split_cn_bundles(bundles: list[QuoteBundle]) -> tuple[list[QuoteBundle], list[QuoteBundle]]:
@@ -259,6 +270,7 @@ def _build_tables(
     bundles: list[QuoteBundle],
     *,
     group_label: str | None = None,
+    premiums: dict[str, PremiumQuote] | None = None,
 ) -> list[dict]:
     """Build image tables; optionally keep one merged group instead of per-theme splits."""
     columns = _columns_for(kind)
@@ -267,7 +279,7 @@ def _build_tables(
 
     if group_label:
         items = _rank_bundles(kind, bundles)
-        rows = [_row_for(kind, b) for b in items]
+        rows = [_row_for(kind, b, premiums) for b in items]
         for i in range(0, len(rows), 10):
             chunk = rows[i : i + 10]
             title = (
@@ -296,7 +308,7 @@ def _build_tables(
     for theme in themes:
         items = _rank_bundles(kind, grouped[theme])
         label = THEME_LABELS.get(theme, theme or "其他")
-        rows = [_row_for(kind, b) for b in items]
+        rows = [_row_for(kind, b, premiums) for b in items]
         for i in range(0, len(rows), 10):
             chunk = rows[i : i + 10]
             title = (
@@ -332,6 +344,7 @@ def run_report(
     action_markdown: str | None = None,
     ledger: TradeLedger | None = None,
     income_codes: set[str] | None = None,
+    premiums: dict[str, PremiumQuote] | None = None,
 ) -> int:
     """kind: daily | weekly | monthly — market data cards."""
     kind = (kind or "daily").strip().lower()
@@ -393,7 +406,9 @@ def run_report(
 
         for title, group, group_label in groups:
             header = _market_header(kind, group)
-            tables = _build_tables(kind, group, group_label=group_label)
+            tables = _build_tables(
+                kind, group, group_label=group_label, premiums=premiums
+            )
             if errors and group is bundles:
                 header += "\n\n**拉取失败：** " + ", ".join(errors)
             elif errors and title.endswith(CN_STOCK_TITLE):
