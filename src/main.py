@@ -27,14 +27,7 @@ from src.action_digest import (
     pending_key,
     should_realert,
 )
-from src.alert_batch import (
-    BatchContext,
-    ScanAlert,
-    batch_markdown,
-    batch_title,
-    dedupe_for_display,
-    sort_alerts,
-)
+from src.alert_batch import ScanAlert, dedupe_for_display, sort_alerts
 from src.dip_bands import (
     DEFAULT_MAX_ABS_PCT,
     DEFAULT_MIN_ABS_PCT,
@@ -45,7 +38,7 @@ from src.dip_bands import (
     sigma_multiple,
 )
 from src.notify import send_alert, send_test_ping
-from src.relative import DEFAULT_BENCHMARKS, compare_to_benchmark, resolve_benchmark
+from src.relative import DEFAULT_BENCHMARKS, compare_to_benchmark
 from src.ops import heartbeat_markdown, snapshot_state
 from src.price_context import (
     RECENT_PERCENTILE,
@@ -214,12 +207,14 @@ def _dispatch_alert(
     ctx,
     extra: str = "",
     dry_run: bool,
+    chart_title: str | None = None,
 ) -> str:
     markdown = compose_alert_markdown(headline, ctx, extra)
     if dry_run:
         log.info("[dry-run] %s 将发送:\n%s", title, markdown)
         return "dry-run"
-    keys = _sparkline_keys(title, ctx.stage, ctx.spark)
+    # Chart caption is the stock name; the alert title is too long for the PNG.
+    keys = _sparkline_keys(chart_title or title, ctx.stage, ctx.spark)
     return send_alert(
         markdown=markdown,
         title=title,
@@ -256,28 +251,6 @@ def dip_levels_for(
     return config.intraday_dip_levels, "固定档"
 
 
-def _benchmark_backdrop(
-    alerts: list[ScanAlert],
-    peers: dict[str, tuple[str, float | None, pd.DataFrame | None]],
-    benchmarks: dict[str, str],
-) -> list[tuple[str, float]]:
-    """Benchmark moves for the markets that actually fired, shown once up top."""
-    out: list[tuple[str, float]] = []
-    seen: set[str] = set()
-    for market in [a.market for a in alerts]:
-        code = resolve_benchmark(market, benchmarks)
-        if not code:
-            continue
-        key = f"{market}:{code.upper()}"
-        if key in seen:
-            continue
-        seen.add(key)
-        entry = peers.get(key)
-        if entry and entry[1] is not None:
-            out.append((entry[0], float(entry[1])))
-    return out
-
-
 def _flush_scan_alerts(
     alerts: list[ScanAlert],
     *,
@@ -285,7 +258,14 @@ def _flush_scan_alerts(
     benchmarks: dict[str, str],
     dry_run: bool,
 ) -> int:
-    """Send one scan's alerts, as one detailed card or one combined card."""
+    """Send each alert as its own card, sparkline included.
+
+    Same-session slides used to be collapsed into one aggregate card. That
+    saved noise on a market-wide day, but buried the one-year path chart that
+    actually answers "high-level dump or flat then dump?" — so each symbol now
+    speaks alone. Crossed bands on the *same* symbol are still collapsed to the
+    deepest one so a -5σ day does not produce three nearly identical cards.
+    """
     if not alerts:
         return 0
 
@@ -300,12 +280,8 @@ def _flush_scan_alerts(
             benchmarks=benchmarks,
         )
 
-    # Every crossed band is committed below, but only the deepest one per
-    # symbol is worth saying out loud.
     display = dedupe_for_display(alerts)
-
-    if len(display) == 1:
-        alert = display[0]
+    for alert in sort_alerts(display):
         extra = alert.extra
         if alert.relative is not None:
             extra = "\n".join(p for p in (extra, alert.relative.markdown_line()) if p)
@@ -315,27 +291,13 @@ def _flush_scan_alerts(
             ctx=alert.ctx,
             extra=extra,
             dry_run=dry_run,
+            chart_title=alert.name,
         )
         if not dry_run:
             log.info("已通过 %s 发送 %s: %s", channel, alert.title, alert.key)
-    else:
-        title = batch_title(display)
-        markdown = batch_markdown(
-            display, BatchContext(_benchmark_backdrop(display, peers, benchmarks))
-        )
-        if dry_run:
-            log.info("[dry-run] %s 将发送:\n%s", title, markdown)
-        else:
-            channel = send_alert(markdown=markdown, title=title, prefer_images=False)
-            log.info(
-                "已通过 %s 发送合并提醒（%d 只）: %s",
-                channel,
-                len(display),
-                ", ".join(a.key for a in sort_alerts(display)),
-            )
 
-    # Only persisted after a successful send, so a webhook failure replays the
-    # alert on the next scan instead of losing it.
+    # Every crossed band is committed — including ones hidden by the display
+    # dedupe — so they cannot re-fire later in the same session.
     if not dry_run:
         for alert in alerts:
             if alert.commit is not None:

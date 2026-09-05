@@ -200,7 +200,7 @@ def send_feishu(
             alt = "行情表"
             if i < len(tables) and tables[i].get("title"):
                 alt = str(tables[i]["title"])
-            elements.append(_img_element(key, alt=alt))
+            elements.append(_img_element(key, alt=alt if tables else "近一年走势"))
     elif tables:
         # Avoid native Feishu tables — cramped on mobile, truncated on desktop.
         stack = "\n\n".join(_mobile_stack_table(t) for t in tables)

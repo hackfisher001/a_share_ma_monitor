@@ -116,22 +116,23 @@ stocks:
 """
 
 
-def test_several_symbols_collapse_into_one_message(scan):
+def test_several_symbols_each_get_their_own_card(scan):
     exit_code, sent, _ = scan(BASE, {"MU": -6.0, "AMD": -5.0, "QQQM": -4.0})
 
     assert exit_code == 0
-    assert len(sent) == 1, "一次巡检的多个触发必须合并成一条"
-    assert "3 只标的同时触发" in sent[0]["markdown"]
-    assert sent[0]["title"] == "盘中提醒 · 3 只触发"
+    assert len(sent) == 3, "每只触发的标的各自一张卡，不再合并"
+    titles = {s["title"] for s in sent}
+    assert all("急跌" in t for t in titles)
+    # Each card carries its own sparkline upload attempt (may be empty without Feishu app).
+    assert all("markdown" in s for s in sent)
 
 
 def test_one_symbol_crossing_several_bands_is_listed_once(scan):
-    """-6% on a σ≈1% symbol trips 2σ/3σ/4σ; the card must not repeat it."""
+    """-6% on a σ≈1% symbol trips 2σ/3σ/4σ; only the deepest card is spoken aloud."""
     _, sent, state = scan(BASE, {"MU": -6.0})
 
     assert len(sent) == 1
-    assert sent[0]["markdown"].count("美光") == 1
-    # Every crossed band is still recorded, so none can re-fire this session.
+    assert "美光" in sent[0]["markdown"]
     assert len(state["intraday_fired"]["us:MU"]["levels"]) >= 3
 
 
@@ -202,6 +203,7 @@ def test_absolute_mode_still_works(scan):
         wobbles={"MU": 4.0, "AMD": 0.8, "QQQM": 1.0},
     )
 
-    # Both breach -3% because volatility is ignored in this mode.
-    body = sent[0]["markdown"]
-    assert "美光" in body and "AMD" in body
+    # Both breach -3% because volatility is ignored in this mode; each gets a card.
+    assert len(sent) == 2
+    bodies = "\n".join(s["markdown"] for s in sent)
+    assert "美光" in bodies and "AMD" in bodies
