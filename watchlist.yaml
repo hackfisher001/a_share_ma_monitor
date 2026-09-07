@@ -134,6 +134,25 @@ stocks:
     market: cn
     theme: sector_etf
 
+  # —— 科技主题 ETF（各类成交额/规模头部）——
+  # 科创芯片 / 科创50 / 科创半导体 / 科创AI；同主题只留一只，避免高度相关刷屏。
+  - code: "588200"
+    name: "科创芯片ETF嘉实"
+    market: cn
+    theme: tech_etf
+  - code: "588000"
+    name: "科创50ETF华夏"
+    market: cn
+    theme: tech_etf
+  - code: "588170"
+    name: "科创半导体ETF华夏"
+    market: cn
+    theme: tech_etf
+  - code: "515980"
+    name: "人工智能ETF华富"
+    market: cn
+    theme: tech_etf
+
   # —— 贵金属 ETF ——
   - code: "518880"
     name: "黄金ETF华安"
