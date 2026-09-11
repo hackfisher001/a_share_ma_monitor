@@ -34,11 +34,10 @@ TMP="$(mktemp)"
 crontab -l 2>/dev/null | grep -v "a_share_ma_monitor\|${ROOT}/scripts/run_once.sh" >"$TMP" || true
 
 # A股盘中巡检。开盘前一刻跑没有意义（还是昨收），所以从 9:35 起；
-# 14:50 那一跑是你当天还能下单的最后决策窗口。
-echo "35 9 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
-echo "*/15 10-11 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
-echo "*/15 13-14 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
-echo "50 14 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
+# 间隔 5 分钟：15 分钟太疏，急跌穿档后要等下一轮才推，体感会「已经跌穿却没提醒」。
+echo "35,40,45,50,55 9 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
+echo "*/5 10-11 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
+echo "*/5 13-14 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 echo "5 15 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 
 # 美股盘中（北京时间 21:30-04:00）：腾讯美股行情可达，急跌当场就能收到
@@ -48,11 +47,11 @@ echo "*/30 0-3 * * 2-6 cd ${ROOT} && ./scripts/run_once.sh >> ${ROOT}/data/cron.
 # 心跳：每天固定说一句话，让「没消息」和「挂了」能区分开；同时备份状态文件
 echo "0 21 * * * cd ${ROOT} && ./scripts/run_once.sh --heartbeat >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 
-# 日报：A股收盘后一条，覆盖全部市场。
-# 只推股息率与持仓成本这类慢变量——盘中提醒已经覆盖了当天该操作的事，
-# 收盘后再复述一遍行情属于事后视角。原先按市场拆成两条，美股那条在砍掉
-# 行情摘要后没有任何内容可发（股息率仅 A 股），所以合并。
-echo "10 16 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh --report daily >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
+# 日报按市场拆开：A股收盘后推 A 股；美股收盘后再推美股。
+# 美股常规收盘 16:00 ET → 北京时间夏令约 04:00、冬令约 05:00，取 5:30 两边都盖住。
+# 星期二到星期六对应美股周一到周五的交易日。
+echo "10 16 * * 1-5 cd ${ROOT} && ./scripts/run_once.sh --report daily --market cn >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
+echo "30 5 * * 2-6 cd ${ROOT} && ./scripts/run_once.sh --report daily --market us >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
 
 # 周报：每周日晚上
 echo "0 20 * * 0 cd ${ROOT} && ./scripts/run_once.sh --report weekly >> ${ROOT}/data/cron.log 2>&1" >>"$TMP"
@@ -69,6 +68,7 @@ echo
 echo "飞书连通测试： ./scripts/run_once.sh --notify-test"
 echo "MA30 试跑：     ./scripts/run_once.sh --dry-run"
 echo "心跳： ./scripts/run_once.sh --heartbeat --dry-run"
-echo "日报： ./scripts/run_once.sh --report daily"
+echo "A股日报： ./scripts/run_once.sh --report daily --market cn"
+echo "美股日报： ./scripts/run_once.sh --report daily --market us"
 echo "周报： ./scripts/run_once.sh --report weekly"
 echo "月报： ./scripts/run_once.sh --report monthly"

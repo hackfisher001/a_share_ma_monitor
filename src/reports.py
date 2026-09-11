@@ -12,6 +12,7 @@ from src.digest import MARKET_TITLE, collect_bundles
 from src.dividends import income_markdown, load_profile
 from src.etf_premium import PremiumQuote
 from src.fetch_quotes import QuoteBundle
+from src.news_digest import run_news_digest
 from src.notify import send_alert
 from src.trades import TradeLedger
 from src.perf import (
@@ -345,6 +346,7 @@ def run_report(
     ledger: TradeLedger | None = None,
     income_codes: set[str] | None = None,
     premiums: dict[str, PremiumQuote] | None = None,
+    news_topics_path: Path | None = None,
 ) -> int:
     """kind: daily | weekly | monthly — market data cards."""
     kind = (kind or "daily").strip().lower()
@@ -458,6 +460,26 @@ def run_report(
                 channel = send_alert(title=title, markdown=holdings_md, prefer_images=False)
                 log.info("已通过 %s 发送 %s", channel, title)
             sent += 1
+
+    # Topic news is informational: only on reports, never intraday alerts.
+    # Failures here must not fail the whole report (feeds are flaky abroad/CN).
+    try:
+        news_md = run_news_digest(
+            all_bundles,
+            kind=kind,
+            topics_path=news_topics_path or Path("news_topics.yaml"),
+        )
+    except Exception as exc:
+        log.warning("相关要闻生成失败: %s", exc)
+        news_md = None
+    if news_md:
+        title = "相关要闻"
+        if dry_run:
+            log.info("[dry-run] %s\n%s", title, news_md)
+        else:
+            channel = send_alert(title=title, markdown=news_md, prefer_images=False)
+            log.info("已通过 %s 发送 %s", channel, title)
+        sent += 1
 
     log.info("%s完成：发送 %d 组，全失败市场 %d", REPORT_TITLES[kind], sent, fail_markets)
     # Failure means the data was unusable, not that there was nothing to say.

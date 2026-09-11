@@ -783,13 +783,17 @@ def main() -> None:
             quote = lookup_premium(code)
             if quote is not None:
                 premiums[code] = quote
+        # 行动清单挂在 A 股日报上；美股单独推送时不再重复发一遍。
+        include_actions = report_kind == "daily" and (
+            markets is None or "cn" in markets
+        )
         raise SystemExit(
             run_report(
                 stocks,
                 kind=report_kind,
                 dry_run=args.dry_run,
                 markets=markets,
-                action_markdown=action_md if report_kind == "daily" else None,
+                action_markdown=action_md if include_actions else None,
                 ledger=ledger,
                 income_codes=income_codes,
                 premiums=premiums,

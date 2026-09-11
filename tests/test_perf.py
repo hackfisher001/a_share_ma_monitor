@@ -70,3 +70,30 @@ def test_attach_live_close_updates_same_session_bar():
     assert len(aligned) == len(hist)
     pct = change_by_trading_days(aligned, 15.25, 1)
     assert abs(pct - ((15.25 / 15.65) - 1) * 100) < 1e-9
+
+
+def test_bundle_fills_prev_close_when_spot_omits_it(monkeypatch):
+    """Realtime quote without 昨收 must not blank out the intraday-dip path."""
+    from datetime import date
+
+    import src.fetch_quotes as fq
+    from src.fetch_quotes import SpotQuote
+
+    closes = [10.0 + i * 0.1 for i in range(40)]
+    closes[-2] = 16.66
+    closes[-1] = 16.66
+    hist = _hist(closes)
+    today = date.today()
+    hist = hist.copy()
+    hist.loc[hist.index[-1], "date"] = pd.Timestamp(today)
+    hist.loc[hist.index[-2], "date"] = pd.Timestamp(today) - pd.Timedelta(days=1)
+
+    monkeypatch.setattr(fq, "fetch_daily_history_cn", lambda code: hist)
+    monkeypatch.setattr(
+        fq,
+        "lookup_spot_cn_detail",
+        lambda code: SpotQuote(price=15.25, name="机器人", prev_close=None, as_of=today),
+    )
+    bundle = fq.build_bundle("300024", name="机器人", market="cn")
+    assert bundle.prev_close == 16.66
+    assert abs((bundle.price / bundle.prev_close - 1.0) * 100.0 - ((15.25 / 16.66) - 1) * 100) < 1e-9

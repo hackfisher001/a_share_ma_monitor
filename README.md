@@ -192,14 +192,26 @@ python -m src.main --record-trade SELL TSLA 5 315.20 --market us
 
 收盘后一条，覆盖全市场。行情摘要的价值不是指导当天操作（那是盘中提醒的事），是让你对持仓**保持感知**——谁强谁弱、谁在异常波动、自己成本在哪。这和盘中提醒不冲突。
 
-包含：完整行情表（按主题分组、含近一年走势图）、**股息率**、**持仓与成本**。
+包含：完整行情表（按主题分组、含近一年走势图）、**股息率**、**持仓与成本**、**相关要闻**。
 
 ```bash
-python -m src.main --report daily --dry-run     # 预览
-python -m src.main --report daily               # 正式发送（16:10 一条，覆盖全市场）
-python -m src.main --report weekly              # 周报
-python -m src.main --report monthly             # 月报
+python -m src.main --report daily --market cn --dry-run   # 预览 A 股日报
+python -m src.main --report daily --market cn             # A 股收盘后（工作日 16:10）
+python -m src.main --report daily --market us             # 美股收盘后（北京时间次日 5:30）
+python -m src.main --report weekly                        # 周报
+python -m src.main --report monthly                       # 月报
 ```
+
+### 相关要闻（话题 → 持仓）
+
+只出现在日/周/月报，**不进盘中急跌推送**。流程：RSS 拉取 → 关键词命中 `news_topics.yaml` 话题 → 相近标题聚类 → 可选 DeepSeek 写成一句话 → 挂上可能影响的标的与今日涨跌是否同向。
+
+关掉：把 `news_topics.yaml` 里 `enabled` 设为 `false`。不配 `DEEPSEEK_API_KEY` 也能用（直接展示标题）；配了则用 `deepseek-flash` 润色，费用通常每月几块钱。
+
+信源以阿里云可达为准（CNBC / MarketWatch / WSJ Markets / 中国新闻网 / 人民网财经）。BBC、Google News、Investing 等在国内机实测不通，已从默认列表去掉。
+
+举例：改前日报只有涨跌表；改后多一张卡  
+`[黄金涨跌逻辑] … → 可能影响：黄金ETF(518880) -2.1%｜今日多数同向下跌`
 
 原先按市场拆成 A 股 16:10、美股次日 6:30 两条，已合并为一条（16:10）。
 
@@ -245,10 +257,11 @@ nano watchlist.yaml
 
 | 时间（北京） | 任务 |
 |---|---|
-| 工作日 9:35、10-11 与 13-14 每 15 分钟、14:50、15:05 | A 股盘中巡检 |
+| 工作日 9:35 起，上午/下午每 5 分钟，15:05 | A 股盘中巡检 |
 | 工作日 22:00-03:30 每 30 分钟 | 美股盘中巡检 |
 | 每天 21:00 | 心跳 + 状态备份 |
-| 工作日 16:10 | 日报（股息率 + 持仓，覆盖全市场） |
+| 工作日 16:10 | A 股日报（`--market cn`） |
+| 周二至周六 5:30 | 美股日报（`--market us`，对应美股前一交易日收盘后） |
 | 周日 20:00、每月 1 日 9:00 | 周报 / 月报 |
 
 开盘前那一跑已经去掉——9:00 拿到的还是昨收，纯属白跑。14:50 是新增的，那是你当天还能下单的最后决策窗口。

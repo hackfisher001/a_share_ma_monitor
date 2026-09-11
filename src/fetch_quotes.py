@@ -541,8 +541,9 @@ def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
     if len(hist) < 30:
         raise ValueError(f"{display} 日线不足 30 根（当前 {len(hist)}）")
 
+    session = _session_date(market)
     if spot is not None:
-        session = spot.as_of or _session_date(market)
+        session = spot.as_of or session
         hist = attach_live_close(hist, spot.price, session)
         price = float(spot.price)
         display_name = name or spot.name or display
@@ -554,6 +555,19 @@ def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
     # Close-based high, matching the rolling high used in the backtest.
     high_252 = float(max(hist["close"].tail(HIGH_WINDOW).max(), price))
     as_of = pd.Timestamp(hist.iloc[-1]["date"]).strftime("%Y-%m-%d")
+
+    # Spot feeds sometimes omit 昨收 (or the whole quote fails while the daily
+    # API already shows today's bar). Without a previous close the intraday-dip
+    # path silently skips the symbol — exactly when you most want the alert.
+    prev_close = spot.prev_close if spot is not None else None
+    if prev_close is None or prev_close <= 0:
+        last_day = pd.Timestamp(hist.iloc[-1]["date"]).normalize().date()
+        if last_day >= session and len(hist) >= 2:
+            try:
+                prev_close = float(hist.iloc[-2]["close"])
+            except (TypeError, ValueError):
+                prev_close = None
+
     return QuoteBundle(
         code=display,
         name=display_name,
@@ -564,7 +578,7 @@ def build_bundle(code: str, name: str = "", market: str = "cn") -> QuoteBundle:
         as_of=as_of,
         hist=hist,
         live=spot is not None,
-        prev_close=spot.prev_close if spot is not None else None,
+        prev_close=prev_close,
     )
 
 

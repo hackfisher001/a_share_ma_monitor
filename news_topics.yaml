@@ -1,0 +1,294 @@
+# 话题监控：新闻 → 持仓相关逻辑（ClueArk 风格精简版）
+#
+# 流程：RSS 拉取 → 关键词命中话题 → 同话题聚类 → 可选 DeepSeek 摘要 → 仅进日/周报
+# 不进盘中即时推送，避免飞书变新闻站。
+#
+# 日报格式每条：
+#   [话题] 一句话事实 → 可能影响：名称(代码) → 今日涨跌是否同向
+
+enabled: true
+# 日报最多展示几条话题（同类报道已聚类）
+max_topics: 5
+# 拉取新闻的回溯窗口（小时）；周报在代码里会拉长到 7 天
+lookback_hours: 36
+# 标题归一化后相似度 ≥ 该值视为同一事件（简单词集合交并比）
+cluster_jaccard: 0.55
+
+# 公共信源（失败自动跳过，不阻断日报）
+# 2026-09 在阿里云（47.95.122.231）实测：只保留可稳定拉到条目的源。
+# 不通/超时：BBC、Google News、Investing、Yahoo、FT、NYT、Reuters Agency 等。
+sources:
+  # —— 国际财经（国内机可达）——
+  - name: cnbc_top
+    url: https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114
+  - name: cnbc_finance
+    url: https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664
+  - name: cnbc_world
+    url: https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362
+  - name: marketwatch
+    url: https://feeds.marketwatch.com/marketwatch/topstories/
+  - name: wsj_markets
+    url: https://feeds.a.dj.com/rss/RSSMarketsMain.xml
+  # —— 国内（快、稳，覆盖收息仓/宏观中文关键词）——
+  - name: chinanews_finance
+    url: https://www.chinanews.com.cn/rss/finance.xml
+  - name: chinanews_china
+    url: https://www.chinanews.com.cn/rss/china.xml
+  - name: people_finance
+    url: http://www.people.com.cn/rss/finance.xml
+
+topics:
+  # —— 你已明确要盯的 ——
+  - id: fed_rates
+    title: 美联储利率路径
+    keywords:
+      - Federal Reserve
+      - FOMC
+      - interest rate
+      - rate cut
+      - rate hike
+      - the Fed
+      - Fed cuts
+      - Fed holds
+      - Fed hike
+      - 美联储
+      - 加息
+      - 降息
+      - 利率决议
+      - Powell
+    codes: ["518880", "GC=F", "QQQM", "159509", "BTC-USD", "NVDA", "AAPL"]
+
+  - id: real_rate_usd
+    title: 实际利率与美元
+    keywords:
+      - real yield
+      - real rates
+      - dollar index
+      - DXY
+      - 美元指数
+      - 实际利率
+      - Treasury yield
+      - 美债收益率
+    codes: ["518880", "GC=F", "BTC-USD", "QQQM"]
+
+  - id: gold_move
+    title: 黄金涨跌逻辑
+    keywords:
+      - gold price
+      - gold falls
+      - gold drops
+      - gold surges
+      - bullion
+      - 金价
+      - 黄金暴跌
+      - 黄金暴涨
+      - 黄金下跌
+      - 黄金上涨
+      - spot gold
+    codes: ["518880", "GC=F", "601899"]
+
+  - id: aapl_event
+    title: 苹果产品与中国敞口
+    keywords:
+      - Apple
+      - iPhone
+      - App Store
+      - WWDC
+      - 苹果
+      - 库克
+      - Tim Cook
+    codes: ["AAPL", "QQQM", "159509"]
+
+  - id: spcx_corp
+    title: SpaceX / SPCX 公司事件
+    keywords:
+      - SpaceX
+      - Starlink
+      - SPCX
+      - Cursor
+      - Anysphere
+      - Elon Musk rocket
+      - 星链
+    codes: ["SPCX"]
+
+  # —— 建议补进的重大逻辑 ——
+  - id: ai_capex
+    title: AI 资本开支 / 云厂 CapEx
+    keywords:
+      - CapEx
+      - capital expenditure
+      - AI spending
+      - hyperscaler
+      - data center
+      - 资本开支
+      - 算力投资
+      - cloud spending
+      - Microsoft Azure
+      - Amazon AWS
+      - Google Cloud
+    codes: ["NVDA", "AMD", "MU", "GOOGL", "588200", "588170", "515980", "159509", "QQQM"]
+
+  - id: memory_cycle
+    title: 存储周期 DRAM/NAND
+    keywords:
+      - DRAM
+      - NAND
+      - HBM
+      - memory chip
+      - memory prices
+      - 存储芯片
+      - 内存价格
+      - Micron
+      - SanDisk
+      - SK Hynix
+      - 闪存
+    codes: ["MU", "SNDK", "AMD", "NVDA", "588170"]
+
+  - id: chip_export_control
+    title: 芯片出口管制 / 先进制程
+    keywords:
+      - export control
+      - export ban
+      - chip ban
+      - semiconductor ban
+      - BIS
+      - 出口管制
+      - 芯片制裁
+      - 先进制程
+      - AI chip restriction
+      - Nvidia China
+    codes: ["NVDA", "AMD", "MU", "588200", "588170", "515980", "159509"]
+
+  - id: tsla_ops
+    title: 特斯拉经营与政策
+    keywords:
+      - Tesla
+      - Cybertruck
+      - Robotaxi
+      - Full Self-Driving
+      - FSD
+      - 特斯拉
+      - 马斯克汽车
+      - EV delivery
+      - 电动车交付
+    codes: ["TSLA", "QQQM"]
+
+  - id: googl_antitrust
+    title: 谷歌反垄断与云业务
+    keywords:
+      - Google antitrust
+      - Alphabet
+      - DOJ Google
+      - Search monopoly
+      - AI Overview
+      - Google Cloud
+      - 谷歌反垄断
+      - 谷歌云
+    codes: ["GOOGL", "QQQM", "159509"]
+
+  - id: cn_bank_nim
+    title: 银行息差与信贷
+    keywords:
+      - LPR
+      - 净息差
+      - 房贷利率
+      - 银行息差
+      - 零售信贷
+      - 招商银行
+      - mortgage rate China
+    codes: ["600036"]
+
+  - id: cn_hydro
+    title: 水电来水与电价
+    keywords:
+      - 长江电力
+      - 来水
+      - 水电
+      - 水库蓄水
+      - 电价
+      - hydropower China
+    codes: ["600900"]
+
+  - id: cn_coal
+    title: 煤价与火电需求
+    keywords:
+      - 动力煤
+      - 煤炭价格
+      - 中国神华
+      - 火电
+      - thermal coal
+    codes: ["601088"]
+
+  - id: cn_highway
+    title: 出行与通行费
+    keywords:
+      - 宁沪高速
+      - 通行费
+      - 高速公路流量
+      - 假期出行
+      - toll road China
+    codes: ["600377"]
+
+  - id: cn_telecom
+    title: 中移动分红与算力
+    keywords:
+      - 中国移动
+      - 中移动
+      - 分红派息
+      - 算力网络
+      - China Mobile dividend
+    codes: ["600941"]
+
+  - id: zijin_copper
+    title: 铜价与紫金资源
+    keywords:
+      - copper price
+      - 铜价
+      - 紫金矿业
+      - Zijin
+      - copper demand
+    codes: ["601899"]
+
+  - id: qdii_fx
+    title: QDII 额度与汇率溢价
+    keywords:
+      - QDII
+      - 额度
+      - 人民币汇率
+      - offshore dollar
+      - ETF 溢价
+      - 北向资金
+    codes: ["159509"]
+
+  - id: btc_flow
+    title: 比特币资金与监管
+    keywords:
+      - Bitcoin ETF
+      - BTC ETF
+      - bitcoin regulation
+      - 比特币
+      - crypto ETF
+      - SEC bitcoin
+    codes: ["BTC-USD", "QQQM"]
+
+  - id: us_china_tariff
+    title: 中美关税与贸易
+    keywords:
+      - tariff
+      - trade war
+      - 关税
+      - 贸易战
+      - Section 301
+      - China tariffs
+    codes: ["AAPL", "TSLA", "QQQM", "159509", "NVDA"]
+
+  - id: mega7_earnings
+    title: 美股巨头财报周
+    keywords:
+      - earnings
+      - quarterly results
+      - 财报
+      - 业绩指引
+      - guidance
+      - Mag 7
+    codes: ["AAPL", "GOOGL", "NVDA", "TSLA", "MU", "AMD", "QQQM", "159509"]
